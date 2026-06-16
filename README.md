@@ -4,6 +4,14 @@ This folder turns the scaffold-related parts of the MotiL micromolecule code int
 
 The goal is simple: help other researchers reuse the same scaffold idea from the paper without having to trace the full training code first.
 
+## 🔗 Upstream code
+
+This visualization script is designed to work together with the original MotiL repository:
+
+- MotiL repository: [Young0222/MotiL](https://github.com/Young0222/MotiL)
+
+Please download or clone that repository first, because this script directly reuses several functions from the MotiL micromolecule code.
+
 ## ✨ What this folder helps you do
 
 With one script, you can:
@@ -19,14 +27,16 @@ With one script, you can:
 
 This workflow reuses the existing MotiL implementation directly.
 
-- `MotiL_micromolecule/chemprop/data/scaffold.py`
-  Uses `generate_scaffold(mol)` to compute Bemis-Murcko scaffolds with RDKit.
-- `MotiL_micromolecule/chemprop/data/utils.py`
-  Uses `get_data(...)` to load molecules from a CSV file.
-- `MotiL_micromolecule/chemprop/train/predict.py`
-  Uses `get_emb(...)` to extract molecular embeddings from the pretrained encoder.
-- `MotiL_micromolecule/chemprop/models/model.py`
-  Uses `build_pretrain_model(...)` to build the encoder for embedding extraction.
+- [`MotiL_micromolecule/chemprop/data/scaffold.py`](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/data/scaffold.py)
+  - Uses `generate_scaffold(mol)` to compute Bemis-Murcko scaffolds with RDKit.
+- [`MotiL_micromolecule/chemprop/data/utils.py`](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/data/utils.py)
+  - Uses `get_data(...)` to load molecules from a CSV file.
+- [`MotiL_micromolecule/chemprop/models/model.py`](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/models/model.py)
+  - Uses `build_pretrain_model(...)` to build the MotiL encoder for embedding extraction.
+- [`MotiL_micromolecule/chemprop/train/predict.py`](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/train/predict.py)
+  - Uses `get_emb(...)` to extract molecular embeddings from the pretrained encoder.
+
+In other words, this folder is a lightweight visualization layer built on top of MotiL, not a reimplementation of the full micromolecule pipeline.
 
 ## 🧠 What Figure 2a means
 
@@ -69,6 +79,21 @@ The plotting script also expects `matplotlib` and `scikit-learn`. In many enviro
 ```bash
 pip install matplotlib scikit-learn
 ```
+
+## 📦 What you need to download
+
+To run this script directly, make sure the following files are available from the original MotiL repository:
+
+- MotiL repository: [Young0222/MotiL](https://github.com/Young0222/MotiL)
+- Scaffold function: [scaffold.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/data/scaffold.py)
+- Data loading utilities: [utils.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/data/utils.py)
+- Pretrain model builder: [model.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/models/model.py)
+- Embedding extraction code: [predict.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/train/predict.py)
+- Example dataset: [esol.csv](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/data/esol.csv)
+- Example dataset: [bbbp.csv](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/data/bbbp.csv)
+- Example pretrained checkpoint folder: [dumped/pre-train/1-model](https://github.com/Young0222/MotiL/tree/main/MotiL_micromolecule/dumped/pre-train/1-model)
+
+The simplest setup is to place this `scaffold_visualization` folder next to `MotiL_micromolecule` inside the original MotiL repository structure.
 
 ## ✅ Tested environment
 
@@ -120,6 +145,42 @@ This default command:
 - keeps the top 4 frequent scaffolds with at least 10 molecules
 - runs t-SNE on the selected molecules
 - saves a `.png` figure and a `.csv` table of 2D coordinates
+
+## ▶️ Direct run commands
+
+If you are using the original MotiL repository structure, these are the simplest commands.
+
+Run the default ESOL example:
+
+```bash
+python3 scaffold_visualization/plot_scaffold_tsne.py
+```
+
+Run ESOL explicitly:
+
+```bash
+python3 scaffold_visualization/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/esol.csv \
+  --checkpoint-path MotiL_micromolecule/dumped/pre-train/1-model/original_CMPN_0707_0800_12000th_epoch.pkl \
+  --dataset-type regression
+```
+
+Run BBBP explicitly:
+
+```bash
+python3 scaffold_visualization/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/bbbp.csv \
+  --checkpoint-path MotiL_micromolecule/dumped/pre-train/1-model/original_CMPN_0707_0800_12000th_epoch.pkl \
+  --dataset-type classification
+```
+
+If your working environment uses a specific Python executable, run the script with that exact Python path. For example:
+
+```bash
+/opt/homebrew/bin/python3.10 scaffold_visualization/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/esol.csv \
+  --dataset-type regression
+```
 
 ## 🔬 Example commands
 
@@ -196,6 +257,7 @@ If a lab member wants to make a scaffold plot on a new dataset:
 
 - If you see `ModuleNotFoundError: rdkit`, your current Python does not have RDKit installed.
 - If your default `python3` fails but another Python works, run the script with that exact Python path.
+- If you see an error related to `chemprop`, make sure this folder is placed next to the original `MotiL_micromolecule` folder from [Young0222/MotiL](https://github.com/Young0222/MotiL).
 - If no scaffold passes the filter, lower `--min-scaffold-size`.
 - If you want a more paper-like figure, use `--scaffolds` and choose the scaffold families manually.
 

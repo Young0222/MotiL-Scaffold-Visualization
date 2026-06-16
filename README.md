@@ -1,39 +1,52 @@
 # Scaffold Visualization with MotiL
 
-This folder packages the scaffold-related pieces of the MotiL micromolecule code into a small, reusable workflow for plotting scaffold-colored t-SNE figures.
+This folder turns the scaffold-related parts of the MotiL micromolecule code into a small, reusable workflow for plotting scaffold-colored t-SNE figures.
 
-The goal is to help other researchers reuse the same scaffold logic from the paper without having to trace the full training code.
+The goal is simple: help other researchers reuse the same scaffold idea from the paper without having to trace the full training code first.
 
-## What this uses from the original codebase
+## ✨ What this folder helps you do
 
-The visualization workflow reuses the existing MotiL implementation directly:
+With one script, you can:
+
+1. Load a molecular dataset from a CSV file.
+2. Extract molecular embeddings from a pretrained MotiL encoder.
+3. Compute Bemis-Murcko scaffolds for each molecule.
+4. Select a small set of scaffolds to visualize.
+5. Run t-SNE on the molecular embeddings.
+6. Save a scaffold-colored figure and a CSV file of 2D coordinates.
+
+## 🧩 What this reuses from the original codebase
+
+This workflow reuses the existing MotiL implementation directly.
 
 - `MotiL_micromolecule/chemprop/data/scaffold.py`
-  - `generate_scaffold(mol)` computes the Bemis-Murcko scaffold with RDKit.
+  Uses `generate_scaffold(mol)` to compute Bemis-Murcko scaffolds with RDKit.
 - `MotiL_micromolecule/chemprop/data/utils.py`
-  - `get_data(...)` loads molecules from a CSV file.
+  Uses `get_data(...)` to load molecules from a CSV file.
 - `MotiL_micromolecule/chemprop/train/predict.py`
-  - `get_emb(...)` extracts molecular embeddings from the pretrained encoder.
+  Uses `get_emb(...)` to extract molecular embeddings from the pretrained encoder.
 - `MotiL_micromolecule/chemprop/models/model.py`
-  - `build_pretrain_model(...)` builds the MotiL encoder used for embedding extraction.
+  Uses `build_pretrain_model(...)` to build the encoder for embedding extraction.
 
-## What Figure 2a does
+## 🧠 What Figure 2a means
 
-Figure 2a in the paper is not a direct drawing of scaffold structures. It is a 2D embedding plot:
+Figure 2a in the paper is not a direct drawing of scaffold structures.
 
-1. Extract a molecular embedding for each molecule.
-2. Compute the Bemis-Murcko scaffold for each molecule.
-3. Select a small set of scaffolds to visualize.
-4. Run t-SNE on the molecular embeddings.
-5. Plot one point per molecule and color the points by scaffold label.
-6. Optionally report the Davies-Bouldin index to measure cluster separation.
+It is a 2D embedding plot:
 
-## Files in this folder
+1. Each point is one molecule.
+2. The point position comes from t-SNE on molecular embeddings.
+3. The point color shows the scaffold label of that molecule.
+4. A lower Davies-Bouldin index suggests cleaner separation between scaffold groups.
+
+## 📁 Files in this folder
 
 - `plot_scaffold_tsne.py`
-  - A ready-to-run script that loads a dataset, extracts MotiL embeddings, computes scaffolds, runs t-SNE, and saves a scaffold-colored figure.
+  Ready-to-run script for loading a dataset, extracting MotiL embeddings, computing scaffolds, running t-SNE, and saving outputs.
+- `requirements.txt`
+  Extra plotting dependencies used by this folder.
 
-## Expected input format
+## 📄 Expected input format
 
 The script expects a CSV file whose first column is `smiles`.
 
@@ -42,7 +55,7 @@ Examples already included in this repository:
 - `MotiL_micromolecule/data/esol.csv`
 - `MotiL_micromolecule/data/bbbp.csv`
 
-## Environment setup
+## ⚙️ Environment setup
 
 Use the same environment as the micromolecule code.
 
@@ -57,7 +70,41 @@ The plotting script also expects `matplotlib` and `scikit-learn`. In many enviro
 pip install matplotlib scikit-learn
 ```
 
-## Quick start
+## ✅ Tested environment
+
+This workflow has been tested in this repository with:
+
+- macOS
+- `/opt/homebrew/bin/python3.10`
+- `torch`
+- `rdkit`
+- `scikit-learn`
+- `matplotlib`
+- `pandas`
+- `Unidecode`
+
+Tested command:
+
+```bash
+/opt/homebrew/bin/python3.10 scaffold_visualization/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/esol.csv \
+  --dataset-type regression \
+  --output-dir scaffold_visualization/outputs_test
+```
+
+Tested output:
+
+- dataset: `ESOL`
+- valid molecules loaded: `1128`
+- selected scaffolds: `4`
+- Davies-Bouldin index: `1.896`
+- generated files:
+  - `scaffold_visualization/outputs_test/esol_scaffold_tsne.png`
+  - `scaffold_visualization/outputs_test/esol_scaffold_tsne.csv`
+
+If your default `python3` does not have RDKit, use the exact Python executable from your working MotiL environment.
+
+## 🚀 Quick start
 
 From the repository root:
 
@@ -74,7 +121,7 @@ This default command:
 - runs t-SNE on the selected molecules
 - saves a `.png` figure and a `.csv` table of 2D coordinates
 
-## Example commands
+## 🔬 Example commands
 
 Plot the default ESOL example:
 
@@ -110,32 +157,32 @@ python3 scaffold_visualization/plot_scaffold_tsne.py \
   --output-dir scaffold_visualization/my_outputs
 ```
 
-## Output files
+## 📤 Output files
 
 The script writes two files into the output directory:
 
 - `*_scaffold_tsne.png`
-  - the scaffold-colored t-SNE figure
+  A scaffold-colored t-SNE figure.
 - `*_scaffold_tsne.csv`
-  - one row per plotted molecule with:
-    - `smiles`
-    - `scaffold`
-    - `tsne_x`
-    - `tsne_y`
-    - `target`
+  One row per plotted molecule with:
+  - `smiles`
+  - `scaffold`
+  - `tsne_x`
+  - `tsne_y`
+  - `target`
 
-## Important note about scaffold selection
+## 🎯 How scaffold selection works
 
-In the paper text, the authors describe selecting four chemically diverse scaffolds for visualization. That means the plotting step is not only "compute scaffold for every molecule", but also "choose which scaffolds to display".
+In the paper text, the authors describe selecting four chemically diverse scaffolds for visualization. So the plotting step is not only "compute scaffold for every molecule", but also "choose which scaffolds to display".
 
 This script supports two practical choices:
 
-- automatic selection with `--top-k`
-- manual selection with `--scaffolds`
+- Automatic selection with `--top-k`
+- Manual selection with `--scaffolds`
 
-For paper-style figures, manual scaffold selection is often better because it gives more control over which chemotypes appear in the figure.
+For paper-style figures, manual selection is often better because it gives more control over which chemotypes appear in the figure.
 
-## Recommended workflow for collaborators
+## 🪜 Recommended workflow for collaborators
 
 If a lab member wants to make a scaffold plot on a new dataset:
 
@@ -145,7 +192,14 @@ If a lab member wants to make a scaffold plot on a new dataset:
 4. Start with automatic top-k selection.
 5. If needed, rerun with `--scaffolds` to highlight specific scaffold families.
 
-## Notes and limitations
+## 🛠 Quick troubleshooting
+
+- If you see `ModuleNotFoundError: rdkit`, your current Python does not have RDKit installed.
+- If your default `python3` fails but another Python works, run the script with that exact Python path.
+- If no scaffold passes the filter, lower `--min-scaffold-size`.
+- If you want a more paper-like figure, use `--scaffolds` and choose the scaffold families manually.
+
+## 📝 Notes and limitations
 
 - This folder reuses the scaffold logic already present in the repository. It does not replace the original implementation.
 - The repository does not include the exact internal plotting script used to generate Figure 2a in the paper.

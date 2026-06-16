@@ -11,6 +11,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
+import types
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -21,6 +22,16 @@ from sklearn.metrics import davies_bouldin_score
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 MICRO_DIR = ROOT_DIR / "MotiL_micromolecule"
+
+# `chemprop/models/model.py` imports names from `turtle`, although they are not
+# used by the scaffold plotting workflow. On headless machines this can fail
+# because `turtle` pulls in `tkinter`. A small stub keeps the workflow portable.
+if "turtle" not in sys.modules:
+    turtle_stub = types.ModuleType("turtle")
+    turtle_stub.forward = None
+    turtle_stub.hideturtle = None
+    turtle_stub.up = None
+    sys.modules["turtle"] = turtle_stub
 
 # The micromolecule code expects to be imported from inside MotiL_micromolecule
 # because some files are loaded through relative paths at import time.
@@ -162,6 +173,10 @@ def build_runtime_args(cli_args: argparse.Namespace) -> SimpleNamespace:
     )
 
 
+def normalize_path(path: Path) -> Path:
+    return path if path.is_absolute() else (ROOT_DIR / path).resolve()
+
+
 def load_model(runtime_args: SimpleNamespace, checkpoint_path: Path) -> torch.nn.Module:
     model = build_pretrain_model(runtime_args, encoder_name="CMPNN")
     state_dict = torch.load(checkpoint_path, map_location="cpu")
@@ -234,11 +249,14 @@ def format_legend_label(scaffold: str, count: int) -> str:
 
 def main() -> None:
     cli_args = parse_args()
+    cli_args.data_path = normalize_path(cli_args.data_path)
+    cli_args.checkpoint_path = normalize_path(cli_args.checkpoint_path)
+    cli_args.output_dir = normalize_path(cli_args.output_dir)
     cli_args.output_dir.mkdir(parents=True, exist_ok=True)
 
     runtime_args = build_runtime_args(cli_args)
     data = get_data(
-        path=str(cli_args.data_path.resolve()),
+        path=str(cli_args.data_path),
         args=runtime_args,
         max_data_size=cli_args.max_points,
     )
@@ -247,7 +265,7 @@ def main() -> None:
 
     print(f"Loaded {len(data)} valid molecules from {cli_args.data_path}.")
 
-    model = load_model(runtime_args, cli_args.checkpoint_path.resolve())
+    model = load_model(runtime_args, cli_args.checkpoint_path)
     embeddings = get_emb(model, data, batch_size=cli_args.batch_size)
 
     smiles_list = data.smiles()
@@ -294,7 +312,7 @@ def main() -> None:
         db_index = davies_bouldin_score(filtered_embeddings, label_ids)
 
     plt.figure(figsize=(8, 6))
-    cmap = plt.cm.get_cmap("tab10", len(selected_scaffolds))
+    cmap = plt.get_cmap("tab10", len(selected_scaffolds))
     scaffold_counts = Counter(filtered_scaffolds)
     for color_id, scaffold in enumerate(selected_scaffolds):
         scaffold_indices = [

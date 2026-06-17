@@ -4,7 +4,7 @@ This folder provides a small plotting tool for making scaffold-colored t-SNE fig
 
 It is built for fast reuse and demo videos.
 
-## Upstream Code
+## 🌱 Upstream Code
 
 This script works together with the original MotiL repository:
 
@@ -18,14 +18,14 @@ It directly reuses code from:
 - CMPNN encoder: [cmpn.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/models/cmpn.py)
 - Featurization: [featurization.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/features/featurization.py)
 
-## Files
+## 📁 Files
 
 - `plot_scaffold_tsne.py`
   Main plotting script.
 - `requirements.txt`
   Extra plotting dependencies.
 
-## Setup
+## ⚙️ Setup
 
 Place this `scaffold_visualization` folder next to `MotiL_micromolecule` inside the original MotiL repository.
 
@@ -42,7 +42,7 @@ If needed, also install:
 pip install matplotlib scikit-learn
 ```
 
-## Quick Start
+## 🚀 Quick Start
 
 From the repository root:
 
@@ -56,7 +56,7 @@ This uses:
 - checkpoint: `MotiL_micromolecule/dumped/pre-train/1-model/original_CMPN_0707_0800_12000th_epoch.pkl`
 - style: `reference`
 
-## Demo-Friendly Commands
+## 🎬 Demo-Friendly Commands
 
 Reference-style ESOL figure:
 
@@ -117,7 +117,7 @@ MPLCONFIGDIR=/absolute/path/to/scaffold_visualization/.mplcache \
   --style reference
 ```
 
-## Main Arguments
+## 🧩 Main Arguments
 
 - `--panel-label`
   Overrides the vertical label in the left panel, for example `BACE`.
@@ -134,7 +134,7 @@ MPLCONFIGDIR=/absolute/path/to/scaffold_visualization/.mplcache \
 - `--max-points`
   Limit the number of molecules for faster testing.
 
-## Output Files
+## 📤 Output Files
 
 The script saves:
 
@@ -149,7 +149,18 @@ The CSV contains:
 - `tsne_y`
 - `target`
 
-## Notes
+## ✨ What the Figure Shows
+
+The output figure can include:
+
+- a left scaffold panel with colored markers
+- automatically drawn scaffold structures
+- a right t-SNE scatter plot
+- a large DB index title
+- an optional vertical dataset label such as `BACE`
+- optional scaffold counts in the left panel
+
+## 📝 Notes
 
 - The left scaffold structures are drawn automatically with RDKit from scaffold SMILES.
 - The `reference` style is intended for polished figures and demo videos.

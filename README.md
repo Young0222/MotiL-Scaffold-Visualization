@@ -1,135 +1,48 @@
 # Scaffold Visualization with MotiL
 
-This folder turns the scaffold-related parts of the MotiL micromolecule code into a small, reusable workflow for plotting scaffold-colored t-SNE figures.
+This folder provides a small plotting tool for making scaffold-colored t-SNE figures from MotiL micromolecule embeddings.
 
-The goal is simple: help other researchers reuse the same scaffold idea from the paper without having to trace the full training code first.
+It is built for fast reuse and demo videos.
 
-## 🔗 Upstream code
+## Upstream Code
 
-This visualization script is designed to work together with the original MotiL repository:
+This script works together with the original MotiL repository:
 
 - MotiL repository: [Young0222/MotiL](https://github.com/Young0222/MotiL)
 
-Please download or clone that repository first, because this script directly reuses several functions from the MotiL micromolecule code.
+It directly reuses code from:
 
-## ✨ What this folder helps you do
+- Scaffold extraction: [scaffold.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/data/scaffold.py)
+- Data loading: [utils.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/data/utils.py)
+- Model building: [model.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/models/model.py)
+- CMPNN encoder: [cmpn.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/models/cmpn.py)
+- Featurization: [featurization.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/features/featurization.py)
 
-With one script, you can:
-
-1. Load a molecular dataset from a CSV file.
-2. Extract molecular embeddings from a pretrained MotiL encoder.
-3. Compute Bemis-Murcko scaffolds for each molecule.
-4. Select a small set of scaffolds to visualize.
-5. Run t-SNE on the molecular embeddings.
-6. Save a scaffold-colored figure and a CSV file of 2D coordinates.
-
-## 🧩 What this reuses from the original codebase
-
-This workflow reuses the existing MotiL implementation directly.
-
-- [`MotiL_micromolecule/chemprop/data/scaffold.py`](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/data/scaffold.py)
-  - Uses `generate_scaffold(mol)` to compute Bemis-Murcko scaffolds with RDKit.
-- [`MotiL_micromolecule/chemprop/data/utils.py`](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/data/utils.py)
-  - Uses `get_data(...)` to load molecules from a CSV file.
-- [`MotiL_micromolecule/chemprop/models/model.py`](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/models/model.py)
-  - Uses `build_pretrain_model(...)` to build the MotiL encoder for embedding extraction.
-- [`MotiL_micromolecule/chemprop/train/predict.py`](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/train/predict.py)
-  - Uses `get_emb(...)` to extract molecular embeddings from the pretrained encoder.
-
-In other words, this folder is a lightweight visualization layer built on top of MotiL, not a reimplementation of the full micromolecule pipeline.
-
-## 🧠 What Figure 2a means
-
-Figure 2a in the paper is not a direct drawing of scaffold structures.
-
-It is a 2D embedding plot:
-
-1. Each point is one molecule.
-2. The point position comes from t-SNE on molecular embeddings.
-3. The point color shows the scaffold label of that molecule.
-4. A lower Davies-Bouldin index suggests cleaner separation between scaffold groups.
-
-## 📁 Files in this folder
+## Files
 
 - `plot_scaffold_tsne.py`
-  Ready-to-run script for loading a dataset, extracting MotiL embeddings, computing scaffolds, running t-SNE, and saving outputs.
+  Main plotting script.
 - `requirements.txt`
-  Extra plotting dependencies used by this folder.
+  Extra plotting dependencies.
 
-## 📄 Expected input format
+## Setup
 
-The script expects a CSV file whose first column is `smiles`.
+Place this `scaffold_visualization` folder next to `MotiL_micromolecule` inside the original MotiL repository.
 
-Examples already included in this repository:
-
-- `MotiL_micromolecule/data/esol.csv`
-- `MotiL_micromolecule/data/bbbp.csv`
-
-## ⚙️ Environment setup
-
-Use the same environment as the micromolecule code.
+Use the same environment as the micromolecule code:
 
 ```bash
 cd MotiL_micromolecule
 pip install -r requirements.txt
 ```
 
-The plotting script also expects `matplotlib` and `scikit-learn`. In many environments they are already installed. If not, install them manually:
+If needed, also install:
 
 ```bash
 pip install matplotlib scikit-learn
 ```
 
-## 📦 What you need to download
-
-To run this script directly, make sure the following files are available from the original MotiL repository:
-
-- MotiL repository: [Young0222/MotiL](https://github.com/Young0222/MotiL)
-- Scaffold function: [scaffold.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/data/scaffold.py)
-- Data loading utilities: [utils.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/data/utils.py)
-- Pretrain model builder: [model.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/models/model.py)
-- Embedding extraction code: [predict.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/train/predict.py)
-- Example dataset: [esol.csv](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/data/esol.csv)
-- Example dataset: [bbbp.csv](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/data/bbbp.csv)
-- Example pretrained checkpoint folder: [dumped/pre-train/1-model](https://github.com/Young0222/MotiL/tree/main/MotiL_micromolecule/dumped/pre-train/1-model)
-
-The simplest setup is to place this `scaffold_visualization` folder next to `MotiL_micromolecule` inside the original MotiL repository structure.
-
-## ✅ Tested environment
-
-This workflow has been tested in this repository with:
-
-- macOS
-- `/opt/homebrew/bin/python3.10`
-- `torch`
-- `rdkit`
-- `scikit-learn`
-- `matplotlib`
-- `pandas`
-- `Unidecode`
-
-Tested command:
-
-```bash
-/opt/homebrew/bin/python3.10 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/esol.csv \
-  --dataset-type regression \
-  --output-dir scaffold_visualization/outputs_test
-```
-
-Tested output:
-
-- dataset: `ESOL`
-- valid molecules loaded: `1128`
-- selected scaffolds: `4`
-- Davies-Bouldin index: `1.896`
-- generated files:
-  - `scaffold_visualization/outputs_test/esol_scaffold_tsne.png`
-  - `scaffold_visualization/outputs_test/esol_scaffold_tsne.csv`
-
-If your default `python3` does not have RDKit, use the exact Python executable from your working MotiL environment.
-
-## 🚀 Quick start
+## Quick Start
 
 From the repository root:
 
@@ -137,132 +50,107 @@ From the repository root:
 python3 scaffold_visualization/plot_scaffold_tsne.py
 ```
 
-This default command:
+This uses:
 
-- loads `MotiL_micromolecule/data/esol.csv`
-- loads the included pretrained checkpoint
-- computes scaffolds with the original MotiL scaffold code
-- keeps the top 4 frequent scaffolds with at least 10 molecules
-- runs t-SNE on the selected molecules
-- saves a `.png` figure and a `.csv` table of 2D coordinates
+- dataset: `MotiL_micromolecule/data/esol.csv`
+- checkpoint: `MotiL_micromolecule/dumped/pre-train/1-model/original_CMPN_0707_0800_12000th_epoch.pkl`
+- style: `reference`
 
-## ▶️ Direct run commands
+## Demo-Friendly Commands
 
-If you are using the original MotiL repository structure, these are the simplest commands.
-
-Run the default ESOL example:
-
-```bash
-python3 scaffold_visualization/plot_scaffold_tsne.py
-```
-
-Run ESOL explicitly:
-
-```bash
-python3 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/esol.csv \
-  --checkpoint-path MotiL_micromolecule/dumped/pre-train/1-model/original_CMPN_0707_0800_12000th_epoch.pkl \
-  --dataset-type regression
-```
-
-Run BBBP explicitly:
-
-```bash
-python3 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/bbbp.csv \
-  --checkpoint-path MotiL_micromolecule/dumped/pre-train/1-model/original_CMPN_0707_0800_12000th_epoch.pkl \
-  --dataset-type classification
-```
-
-If your working environment uses a specific Python executable, run the script with that exact Python path. For example:
-
-```bash
-/opt/homebrew/bin/python3.10 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/esol.csv \
-  --dataset-type regression
-```
-
-## 🔬 Example commands
-
-Plot the default ESOL example:
-
-```bash
-python3 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/esol.csv \
-  --dataset-type regression
-```
-
-Plot BBBP:
-
-```bash
-python3 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/bbbp.csv \
-  --dataset-type classification \
-  --top-k 4 \
-  --min-scaffold-size 15
-```
-
-Plot user-selected scaffolds instead of automatic top-k selection:
+Reference-style ESOL figure:
 
 ```bash
 python3 scaffold_visualization/plot_scaffold_tsne.py \
   --data-path MotiL_micromolecule/data/esol.csv \
   --dataset-type regression \
-  --scaffolds "c1ccc2ccccc2c1" "O=C1NC(=O)NC(=O)N1"
+  --panel-label ESOL \
+  --style reference \
+  --output-dir scaffold_visualization/outputs_esol_demo
 ```
 
-Save outputs to a custom folder:
+Reference-style BACE figure:
 
 ```bash
 python3 scaffold_visualization/plot_scaffold_tsne.py \
-  --output-dir scaffold_visualization/my_outputs
+  --data-path MotiL_micromolecule/data/bace.csv \
+  --dataset-type classification \
+  --panel-label BACE \
+  --style reference \
+  --top-k 6 \
+  --min-scaffold-size 8 \
+  --output-dir scaffold_visualization/outputs_bace_demo
 ```
 
-## 📤 Output files
+Reference-style figure with counts shown in the left panel:
 
-The script writes two files into the output directory:
+```bash
+python3 scaffold_visualization/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/bace.csv \
+  --dataset-type classification \
+  --panel-label BACE \
+  --style reference \
+  --top-k 6 \
+  --show-counts \
+  --output-dir scaffold_visualization/outputs_bace_counts
+```
+
+Simple scatter style:
+
+```bash
+python3 scaffold_visualization/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/bace.csv \
+  --dataset-type classification \
+  --panel-label BACE \
+  --style basic \
+  --output-dir scaffold_visualization/outputs_bace_basic
+```
+
+If your working environment uses a specific Python executable, run the script with that exact path. Example:
+
+```bash
+MPLCONFIGDIR=/absolute/path/to/scaffold_visualization/.mplcache \
+/opt/homebrew/bin/python3.10 scaffold_visualization/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/bace.csv \
+  --dataset-type classification \
+  --panel-label BACE \
+  --style reference
+```
+
+## Main Arguments
+
+- `--panel-label`
+  Overrides the vertical label in the left panel, for example `BACE`.
+- `--style`
+  Plot style. Use `reference` for the demo-style layout and `basic` for a simple scatter plot.
+- `--show-counts`
+  Shows `n=...` for each scaffold in the left panel.
+- `--top-k`
+  Number of scaffold groups to display when scaffolds are selected automatically.
+- `--min-scaffold-size`
+  Minimum scaffold frequency for automatic selection.
+- `--scaffolds`
+  Manually specify scaffold SMILES strings and their display order.
+- `--max-points`
+  Limit the number of molecules for faster testing.
+
+## Output Files
+
+The script saves:
 
 - `*_scaffold_tsne.png`
-  A scaffold-colored t-SNE figure.
 - `*_scaffold_tsne.csv`
-  One row per plotted molecule with:
-  - `smiles`
-  - `scaffold`
-  - `tsne_x`
-  - `tsne_y`
-  - `target`
 
-## 🎯 How scaffold selection works
+The CSV contains:
 
-In the paper text, the authors describe selecting four chemically diverse scaffolds for visualization. So the plotting step is not only "compute scaffold for every molecule", but also "choose which scaffolds to display".
+- `smiles`
+- `scaffold`
+- `tsne_x`
+- `tsne_y`
+- `target`
 
-This script supports two practical choices:
+## Notes
 
-- Automatic selection with `--top-k`
-- Manual selection with `--scaffolds`
-
-For paper-style figures, manual selection is often better because it gives more control over which chemotypes appear in the figure.
-
-## 🪜 Recommended workflow for collaborators
-
-If a lab member wants to make a scaffold plot on a new dataset:
-
-1. Prepare a CSV file with `smiles` in the first column.
-2. Use a pretrained MotiL checkpoint.
-3. Run `plot_scaffold_tsne.py`.
-4. Start with automatic top-k selection.
-5. If needed, rerun with `--scaffolds` to highlight specific scaffold families.
-
-## 🛠 Quick troubleshooting
-
-- If you see `ModuleNotFoundError: rdkit`, your current Python does not have RDKit installed.
-- If your default `python3` fails but another Python works, run the script with that exact Python path.
-- If you see an error related to `chemprop`, make sure this folder is placed next to the original `MotiL_micromolecule` folder from [Young0222/MotiL](https://github.com/Young0222/MotiL).
-- If no scaffold passes the filter, lower `--min-scaffold-size`.
-- If you want a more paper-like figure, use `--scaffolds` and choose the scaffold families manually.
-
-## 📝 Notes and limitations
-
-- This folder reuses the scaffold logic already present in the repository. It does not replace the original implementation.
-- The repository does not include the exact internal plotting script used to generate Figure 2a in the paper.
-- This folder provides a clean and reproducible approximation of that workflow using the published codebase.
+- The left scaffold structures are drawn automatically with RDKit from scaffold SMILES.
+- The `reference` style is intended for polished figures and demo videos.
+- For paper-style figures, `--scaffolds` gives the most control over scaffold order and appearance.

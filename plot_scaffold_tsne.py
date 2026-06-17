@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import importlib.util
 import os
 import sys
 from collections import Counter
@@ -13,15 +14,20 @@ from pathlib import Path
 from types import SimpleNamespace
 import types
 
+import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from matplotlib.patches import FancyBboxPatch
 from sklearn.manifold import TSNE
 from sklearn.metrics import davies_bouldin_score
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
 MICRO_DIR = ROOT_DIR / "MotiL_micromolecule"
+CHEMPROP_DIR = MICRO_DIR / "chemprop"
+
+matplotlib.use("Agg")
 
 # `chemprop/models/model.py` imports names from `turtle`, although they are not
 # used by the scaffold plotting workflow. On headless machines this can fail
@@ -39,10 +45,83 @@ os.chdir(MICRO_DIR)
 if str(MICRO_DIR) not in sys.path:
     sys.path.insert(0, str(MICRO_DIR))
 
-from chemprop.data.scaffold import generate_scaffold  # noqa: E402
-from chemprop.data.utils import get_data  # noqa: E402
-from chemprop.models.model import build_pretrain_model  # noqa: E402
-from chemprop.train.predict import get_emb  # noqa: E402
+from rdkit import Chem  # noqa: E402
+from rdkit.Chem import Draw  # noqa: E402
+
+
+def ensure_package(name: str, path: Path) -> types.ModuleType:
+    module = sys.modules.get(name)
+    if module is None:
+        module = types.ModuleType(name)
+        module.__path__ = [str(path)]
+        sys.modules[name] = module
+    return module
+
+
+def load_module(name: str, path: Path):
+    if name in sys.modules:
+        return sys.modules[name]
+    spec = importlib.util.spec_from_file_location(name, path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
+    assert spec.loader is not None
+    spec.loader.exec_module(module)
+    return module
+
+
+def bootstrap_chemprop():
+    ensure_package("chemprop", CHEMPROP_DIR)
+    features_pkg = ensure_package("chemprop.features", CHEMPROP_DIR / "features")
+    data_pkg = ensure_package("chemprop.data", CHEMPROP_DIR / "data")
+    ensure_package("chemprop.models", CHEMPROP_DIR / "models")
+
+    features_generators_module = load_module(
+        "chemprop.features.features_generators",
+        CHEMPROP_DIR / "features" / "features_generators.py",
+    )
+    features_utils_module = load_module(
+        "chemprop.features.utils",
+        CHEMPROP_DIR / "features" / "utils.py",
+    )
+    featurization_module = load_module(
+        "chemprop.features.featurization",
+        CHEMPROP_DIR / "features" / "featurization.py",
+    )
+
+    features_pkg.get_available_features_generators = (
+        features_generators_module.get_available_features_generators
+    )
+    features_pkg.get_features_generator = features_generators_module.get_features_generator
+    features_pkg.atom_features = featurization_module.atom_features
+    features_pkg.bond_features = featurization_module.bond_features
+    features_pkg.BatchMolGraph = featurization_module.BatchMolGraph
+    features_pkg.get_atom_fdim = featurization_module.get_atom_fdim
+    features_pkg.get_bond_fdim = featurization_module.get_bond_fdim
+    features_pkg.mol2graph = featurization_module.mol2graph
+    features_pkg.clear_cache = featurization_module.clear_cache
+    features_pkg.load_features = features_utils_module.load_features
+    features_pkg.save_features = features_utils_module.save_features
+
+    scaler_module = load_module("chemprop.data.scaler", CHEMPROP_DIR / "data" / "scaler.py")
+    data_data_module = load_module("chemprop.data.data", CHEMPROP_DIR / "data" / "data.py")
+    data_pkg.MoleculeDatapoint = data_data_module.MoleculeDatapoint
+    data_pkg.MoleculeDataset = data_data_module.MoleculeDataset
+    data_pkg.StandardScaler = scaler_module.StandardScaler
+
+    load_module("chemprop.nn_utils", CHEMPROP_DIR / "nn_utils.py")
+    scaffold_module = load_module("chemprop.data.scaffold", CHEMPROP_DIR / "data" / "scaffold.py")
+    data_utils_module = load_module("chemprop.data.utils", CHEMPROP_DIR / "data" / "utils.py")
+
+    data_pkg.scaffold_to_smiles = scaffold_module.scaffold_to_smiles
+
+    load_module("chemprop.models.cmpn", CHEMPROP_DIR / "models" / "cmpn.py")
+    load_module("chemprop.models.mpn", CHEMPROP_DIR / "models" / "mpn.py")
+    model_module = load_module("chemprop.models.model", CHEMPROP_DIR / "models" / "model.py")
+
+    return scaffold_module.generate_scaffold, data_utils_module.get_data, model_module.build_pretrain_model
+
+
+generate_scaffold, get_data, build_pretrain_model = bootstrap_chemprop()
 
 
 def parse_args() -> argparse.Namespace:
@@ -138,6 +217,23 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Optional figure title.",
     )
+    parser.add_argument(
+        "--panel-label",
+        type=str,
+        default=None,
+        help="Optional label shown vertically in the left scaffold panel.",
+    )
+    parser.add_argument(
+        "--style",
+        choices=["reference", "basic"],
+        default="reference",
+        help="Plot style. Use 'reference' for the demo-style figure.",
+    )
+    parser.add_argument(
+        "--show-counts",
+        action="store_true",
+        help="Show scaffold counts in the left panel.",
+    )
     return parser.parse_args()
 
 
@@ -185,6 +281,32 @@ def load_model(runtime_args: SimpleNamespace, checkpoint_path: Path) -> torch.nn
         model = model.cuda()
     model.eval()
     return model
+
+
+def get_emb(model: torch.nn.Module, data, batch_size: int) -> np.ndarray:
+    model.eval()
+    embs = []
+    num_iters = len(data)
+    dataset_cls = data.__class__
+
+    for start in range(0, num_iters, batch_size):
+        mol_batch = dataset_cls(data[start : start + batch_size])
+        smiles_batch = mol_batch.smiles()
+        features_batch = mol_batch.features()
+
+        with torch.no_grad():
+            batch_embs = model.encoder(
+                "pretrain",
+                "contrast_mol",
+                3,
+                0.0,
+                smiles_batch,
+                features_batch,
+            )
+
+        embs.append(batch_embs.detach().cpu().numpy())
+
+    return np.vstack(embs)
 
 
 def select_scaffolds(
@@ -242,9 +364,180 @@ def export_coordinates(
             writer.writerow([smile, scaffold, coord[0], coord[1], target])
 
 
-def format_legend_label(scaffold: str, count: int) -> str:
-    short = scaffold if len(scaffold) <= 30 else scaffold[:27] + "..."
-    return f"{short} (n={count})"
+def scaffold_to_image(scaffold: str, size: tuple[int, int] = (220, 120)):
+    mol = Chem.MolFromSmiles(scaffold)
+    if mol is None:
+        return None
+    return Draw.MolToImage(mol, size=size)
+
+
+def dataset_display_name(path: Path) -> str:
+    return path.stem.upper()
+
+
+def build_color_palette(num_colors: int) -> list[str]:
+    base_palette = [
+        "#ff245a",
+        "#b3b3b3",
+        "#ffdd2d",
+        "#4b6ff2",
+        "#ff8b38",
+        "#9f1ae2",
+    ]
+    if num_colors <= len(base_palette):
+        return base_palette[:num_colors]
+    cmap = plt.get_cmap("tab20", num_colors)
+    return [cmap(i) for i in range(num_colors)]
+
+
+def plot_reference_style_figure(
+    coordinates: np.ndarray,
+    filtered_scaffolds: list[str],
+    selected_scaffolds: list[str],
+    scaffold_counts: Counter,
+    db_index: float | None,
+    dataset_name: str,
+    output_path: Path,
+    dpi: int,
+    show_counts: bool,
+) -> None:
+    colors = build_color_palette(len(selected_scaffolds))
+    color_map = {
+        scaffold: colors[index]
+        for index, scaffold in enumerate(selected_scaffolds)
+    }
+
+    fig = plt.figure(figsize=(10.2, 5.8), facecolor="white")
+    grid = fig.add_gridspec(1, 2, width_ratios=[0.95, 2.05], wspace=0.04)
+    ax_panel = fig.add_subplot(grid[0, 0])
+    ax_plot = fig.add_subplot(grid[0, 1])
+
+    ax_panel.set_xlim(0, 1)
+    ax_panel.set_ylim(0, 1)
+    ax_panel.axis("off")
+
+    panel_bg = FancyBboxPatch(
+        (0.04, 0.04),
+        0.9,
+        0.92,
+        boxstyle="round,pad=0.02,rounding_size=0.08",
+        linewidth=0.0,
+        facecolor="#f3f3f3",
+    )
+    ax_panel.add_patch(panel_bg)
+
+    y_positions = np.linspace(0.86, 0.10, len(selected_scaffolds))
+    for scaffold, y_pos in zip(selected_scaffolds, y_positions):
+        color = color_map[scaffold]
+        ax_panel.scatter(
+            [0.37],
+            [y_pos],
+            s=520,
+            color=color,
+            edgecolors="white",
+            linewidths=1.4,
+            zorder=3,
+        )
+        img = scaffold_to_image(scaffold)
+        if img is not None:
+            ax_panel.imshow(
+                img,
+                extent=(0.47, 0.90, y_pos - 0.075, y_pos + 0.075),
+                aspect="auto",
+                zorder=2,
+            )
+        if show_counts:
+            ax_panel.text(
+                0.47,
+                y_pos + 0.088,
+                f"n={scaffold_counts[scaffold]}",
+                fontsize=10,
+                color="#4d5563",
+                ha="left",
+                va="bottom",
+            )
+
+    ax_panel.text(
+        0.17,
+        0.50,
+        dataset_name,
+        rotation=90,
+        va="center",
+        ha="center",
+        fontsize=27,
+        color="black",
+    )
+
+    for scaffold in selected_scaffolds:
+        indices = [
+            idx for idx, label in enumerate(filtered_scaffolds) if label == scaffold
+        ]
+        points = coordinates[indices]
+        ax_plot.scatter(
+            points[:, 0],
+            points[:, 1],
+            s=230,
+            color=color_map[scaffold],
+            edgecolors="white",
+            linewidths=1.5,
+            alpha=0.96,
+            zorder=3,
+        )
+
+    title = "DB index"
+    if db_index is not None:
+        title = f"DB index: {db_index:.2f}"
+    ax_plot.set_title(title, fontsize=30, pad=6)
+
+    ax_plot.grid(True, color="#cfd4dd", linewidth=1.0, alpha=0.45)
+    ax_plot.set_axisbelow(True)
+    ax_plot.tick_params(labelbottom=False, labelleft=False, length=3, colors="#b7bcc7")
+    ax_plot.set_xlabel("")
+    ax_plot.set_ylabel("")
+
+    for spine in ax_plot.spines.values():
+        spine.set_color("#8f96a3")
+        spine.set_linewidth(1.2)
+
+    fig.subplots_adjust(left=0.03, right=0.995, top=0.90, bottom=0.06, wspace=0.04)
+    fig.savefig(output_path, dpi=dpi, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
+def plot_basic_style_figure(
+    coordinates: np.ndarray,
+    filtered_scaffolds: list[str],
+    selected_scaffolds: list[str],
+    db_index: float | None,
+    dataset_name: str,
+    output_path: Path,
+    dpi: int,
+) -> None:
+    colors = build_color_palette(len(selected_scaffolds))
+    color_map = {scaffold: colors[index] for index, scaffold in enumerate(selected_scaffolds)}
+
+    fig, ax = plt.subplots(figsize=(8, 6), facecolor="white")
+    for scaffold in selected_scaffolds:
+        indices = [idx for idx, label in enumerate(filtered_scaffolds) if label == scaffold]
+        points = coordinates[indices]
+        ax.scatter(
+            points[:, 0],
+            points[:, 1],
+            s=36,
+            color=color_map[scaffold],
+            edgecolors="white",
+            linewidths=0.8,
+            alpha=0.92,
+        )
+
+    title = dataset_name if db_index is None else f"{dataset_name} | DB index: {db_index:.2f}"
+    ax.set_title(title)
+    ax.set_xlabel("t-SNE 1")
+    ax.set_ylabel("t-SNE 2")
+    ax.grid(True, alpha=0.25)
+    fig.tight_layout()
+    fig.savefig(output_path, dpi=dpi, facecolor="white")
+    plt.close(fig)
 
 
 def main() -> None:
@@ -311,39 +604,33 @@ def main() -> None:
         label_ids = [selected_scaffolds.index(scaffold) for scaffold in filtered_scaffolds]
         db_index = davies_bouldin_score(filtered_embeddings, label_ids)
 
-    plt.figure(figsize=(8, 6))
-    cmap = plt.get_cmap("tab10", len(selected_scaffolds))
     scaffold_counts = Counter(filtered_scaffolds)
-    for color_id, scaffold in enumerate(selected_scaffolds):
-        scaffold_indices = [
-            index for index, label in enumerate(filtered_scaffolds) if label == scaffold
-        ]
-        points = coordinates[scaffold_indices]
-        plt.scatter(
-            points[:, 0],
-            points[:, 1],
-            s=28,
-            alpha=0.85,
-            color=cmap(color_id),
-            label=format_legend_label(scaffold, scaffold_counts[scaffold]),
-        )
-
-    title = cli_args.title
-    if title is None:
-        title = f"Scaffold-colored t-SNE: {cli_args.data_path.stem}"
-    if db_index is not None:
-        title += f" | DB index = {db_index:.3f}"
-
-    plt.title(title)
-    plt.xlabel("t-SNE 1")
-    plt.ylabel("t-SNE 2")
-    plt.legend(frameon=False, fontsize=8)
-    plt.tight_layout()
 
     png_path = cli_args.output_dir / f"{cli_args.data_path.stem}_scaffold_tsne.png"
     csv_path = cli_args.output_dir / f"{cli_args.data_path.stem}_scaffold_tsne.csv"
-    plt.savefig(png_path, dpi=cli_args.dpi)
-    plt.close()
+    panel_label = cli_args.panel_label if cli_args.panel_label else dataset_display_name(cli_args.data_path)
+    if cli_args.style == "reference":
+        plot_reference_style_figure(
+            coordinates=coordinates,
+            filtered_scaffolds=filtered_scaffolds,
+            selected_scaffolds=selected_scaffolds,
+            scaffold_counts=scaffold_counts,
+            db_index=db_index,
+            dataset_name=panel_label,
+            output_path=png_path,
+            dpi=cli_args.dpi,
+            show_counts=cli_args.show_counts,
+        )
+    else:
+        plot_basic_style_figure(
+            coordinates=coordinates,
+            filtered_scaffolds=filtered_scaffolds,
+            selected_scaffolds=selected_scaffolds,
+            db_index=db_index,
+            dataset_name=panel_label,
+            output_path=png_path,
+            dpi=cli_args.dpi,
+        )
 
     export_coordinates(
         csv_path,

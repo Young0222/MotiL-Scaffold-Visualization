@@ -232,16 +232,12 @@ python3 scaffold_visualization_v2/plot_scaffold_tsne.py \
   --output-dir scaffold_visualization_v2/outputs_bace_demo
 ```
 
-## 🎬 Demo Tips
+## 🙏 Acknowledgments
 
-If you are making a demo video, these are good features to show:
-
-- 🌐 upload a CSV and checkpoint from the browser
-- ⏳ real-time progress updates
-- 🧾 clean running logs
-- 🧩 separate legend and scatter outputs
-- ↔️ draggable legend panel in the result viewer
-- 💾 direct download of PNG and CSV outputs
+- The scaffold extraction in this tool follows the Bemis-Murcko scaffold idea and is implemented through RDKit in the original MotiL codebase.
+- This tool directly builds on the micromolecule part of MotiL, including its data loading, featurization, and encoder components.
+- We thank the developers of RDKit for the chemistry toolkit used for scaffold handling and structure drawing.
+- We also acknowledge the open-source Python tools used here, especially PyTorch, Matplotlib, and scikit-learn.
 
 ## 📝 Notes
 

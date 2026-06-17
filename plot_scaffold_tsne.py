@@ -18,12 +18,15 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.patches import FancyBboxPatch
+from rdkit import RDLogger
 from sklearn.manifold import TSNE
 from sklearn.metrics import davies_bouldin_score
 
 
 ROOT_DIR = Path(__file__).resolve().parents[1]
+SCRIPT_DIR = Path(__file__).resolve().parent
 MICRO_DIR = ROOT_DIR / "MotiL_micromolecule"
 CHEMPROP_DIR = MICRO_DIR / "chemprop"
 
@@ -47,6 +50,8 @@ if str(MICRO_DIR) not in sys.path:
 
 from rdkit import Chem  # noqa: E402
 from rdkit.Chem import Draw  # noqa: E402
+
+RDLogger.DisableLog("rdApp.*")
 
 
 def ensure_package(name: str, path: Path) -> types.ModuleType:
@@ -148,7 +153,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output-dir",
         type=Path,
-        default=ROOT_DIR / "scaffold_visualization" / "outputs",
+        default=SCRIPT_DIR / "outputs",
         help="Directory for the figure and exported coordinates.",
     )
     parser.add_argument(
@@ -234,6 +239,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Show scaffold counts in the left panel.",
     )
+    parser.add_argument(
+        "--multiclass-num-classes",
+        type=int,
+        default=3,
+        help="Number of classes when --dataset-type is multiclass.",
+    )
     return parser.parse_args()
 
 
@@ -265,12 +276,16 @@ def build_runtime_args(cli_args: argparse.Namespace) -> SimpleNamespace:
         activation="ReLU",
         dropout=0.0,
         ffn_num_layers=2,
-        multiclass_num_classes=3,
+        multiclass_num_classes=cli_args.multiclass_num_classes,
     )
 
 
 def normalize_path(path: Path) -> Path:
     return path if path.is_absolute() else (ROOT_DIR / path).resolve()
+
+
+def emit_progress(percent: int, message: str) -> None:
+    print(f"[PROGRESS] {percent} {message}", flush=True)
 
 
 def load_model(runtime_args: SimpleNamespace, checkpoint_path: Path) -> torch.nn.Module:
@@ -288,8 +303,9 @@ def get_emb(model: torch.nn.Module, data, batch_size: int) -> np.ndarray:
     embs = []
     num_iters = len(data)
     dataset_cls = data.__class__
+    total_batches = max(1, (num_iters + batch_size - 1) // batch_size)
 
-    for start in range(0, num_iters, batch_size):
+    for batch_index, start in enumerate(range(0, num_iters, batch_size), start=1):
         mol_batch = dataset_cls(data[start : start + batch_size])
         smiles_batch = mol_batch.smiles()
         features_batch = mol_batch.features()
@@ -305,6 +321,11 @@ def get_emb(model: torch.nn.Module, data, batch_size: int) -> np.ndarray:
             )
 
         embs.append(batch_embs.detach().cpu().numpy())
+        progress = 30 + int(40 * batch_index / total_batches)
+        emit_progress(
+            progress,
+            f"Extracting embeddings ({batch_index}/{total_batches} batches)",
+        )
 
     return np.vstack(embs)
 
@@ -335,9 +356,14 @@ def select_scaffolds(
     ]
     selected = frequent_scaffolds[:top_k]
     if not selected:
-        raise ValueError(
-            "No scaffold passed the current filter. Try lowering --min-scaffold-size."
+        fallback_scaffolds = [scaffold for scaffold, _ in counts.most_common() if scaffold][:top_k]
+        if not fallback_scaffolds:
+            raise ValueError("No valid scaffolds were found in the dataset.")
+        print(
+            "Warning: no scaffold passed the current min-scaffold-size filter. "
+            "Falling back to the most frequent scaffolds instead."
         )
+        selected = fallback_scaffolds
     return selected
 
 
@@ -390,12 +416,42 @@ def build_color_palette(num_colors: int) -> list[str]:
     return [cmap(i) for i in range(num_colors)]
 
 
-def plot_reference_style_figure(
-    coordinates: np.ndarray,
-    filtered_scaffolds: list[str],
+def reference_layout_settings(num_scaffolds: int) -> dict[str, object]:
+    compact_layout = num_scaffolds >= 9
+    top_margin = 0.90 if compact_layout else 0.86
+    bottom_margin = 0.06 if compact_layout else 0.10
+    y_positions = np.linspace(top_margin, bottom_margin, num_scaffolds)
+    return {
+        "compact_layout": compact_layout,
+        "legend_fig_height": max(6.6, 1.8 + 1.08 * num_scaffolds),
+        "scatter_fig_height": max(6.0, 5.2 + 0.22 * max(0, num_scaffolds - 6)),
+        "point_size": 440 if compact_layout else 520,
+        "scatter_size": 185 if compact_layout else 230,
+        "panel_fontsize": 23 if compact_layout else 27,
+        "count_fontsize": 8 if compact_layout else 10,
+        "scaffold_image_size": (170, 92) if compact_layout else (220, 120),
+        "image_zoom": 0.46 if compact_layout else 0.62,
+        "image_x": 0.70,
+        "y_positions": y_positions,
+    }
+
+
+def add_scaffold_image(ax, image, x: float, y: float, zoom: float) -> None:
+    image_box = OffsetImage(np.asarray(image), zoom=zoom)
+    annotation = AnnotationBbox(
+        image_box,
+        (x, y),
+        frameon=False,
+        xycoords="axes fraction",
+        box_alignment=(0.5, 0.5),
+        zorder=2,
+    )
+    ax.add_artist(annotation)
+
+
+def plot_reference_legend_figure(
     selected_scaffolds: list[str],
     scaffold_counts: Counter,
-    db_index: float | None,
     dataset_name: str,
     output_path: Path,
     dpi: int,
@@ -406,12 +462,12 @@ def plot_reference_style_figure(
         scaffold: colors[index]
         for index, scaffold in enumerate(selected_scaffolds)
     }
+    layout = reference_layout_settings(len(selected_scaffolds))
 
-    fig = plt.figure(figsize=(10.2, 5.8), facecolor="white")
-    grid = fig.add_gridspec(1, 2, width_ratios=[0.95, 2.05], wspace=0.04)
-    ax_panel = fig.add_subplot(grid[0, 0])
-    ax_plot = fig.add_subplot(grid[0, 1])
-
+    fig, ax_panel = plt.subplots(
+        figsize=(3.6, layout["legend_fig_height"]),
+        facecolor="white",
+    )
     ax_panel.set_xlim(0, 1)
     ax_panel.set_ylim(0, 1)
     ax_panel.axis("off")
@@ -426,32 +482,32 @@ def plot_reference_style_figure(
     )
     ax_panel.add_patch(panel_bg)
 
-    y_positions = np.linspace(0.86, 0.10, len(selected_scaffolds))
-    for scaffold, y_pos in zip(selected_scaffolds, y_positions):
+    for scaffold, y_pos in zip(selected_scaffolds, layout["y_positions"]):
         color = color_map[scaffold]
         ax_panel.scatter(
             [0.37],
             [y_pos],
-            s=520,
+            s=layout["point_size"],
             color=color,
             edgecolors="white",
             linewidths=1.4,
             zorder=3,
         )
-        img = scaffold_to_image(scaffold)
+        img = scaffold_to_image(scaffold, size=layout["scaffold_image_size"])
         if img is not None:
-            ax_panel.imshow(
+            add_scaffold_image(
+                ax_panel,
                 img,
-                extent=(0.47, 0.90, y_pos - 0.075, y_pos + 0.075),
-                aspect="auto",
-                zorder=2,
+                x=layout["image_x"],
+                y=y_pos,
+                zoom=layout["image_zoom"],
             )
         if show_counts:
             ax_panel.text(
-                0.47,
-                y_pos + 0.088,
+                0.49,
+                y_pos + 0.040,
                 f"n={scaffold_counts[scaffold]}",
-                fontsize=10,
+                fontsize=layout["count_fontsize"],
                 color="#4d5563",
                 ha="left",
                 va="bottom",
@@ -464,8 +520,31 @@ def plot_reference_style_figure(
         rotation=90,
         va="center",
         ha="center",
-        fontsize=27,
+        fontsize=layout["panel_fontsize"],
         color="black",
+    )
+    fig.subplots_adjust(left=0.02, right=0.98, top=0.99, bottom=0.01)
+    fig.savefig(output_path, dpi=dpi, bbox_inches="tight", facecolor="white")
+    plt.close(fig)
+
+
+def plot_reference_scatter_figure(
+    coordinates: np.ndarray,
+    filtered_scaffolds: list[str],
+    selected_scaffolds: list[str],
+    db_index: float | None,
+    output_path: Path,
+    dpi: int,
+) -> None:
+    colors = build_color_palette(len(selected_scaffolds))
+    color_map = {
+        scaffold: colors[index]
+        for index, scaffold in enumerate(selected_scaffolds)
+    }
+    layout = reference_layout_settings(len(selected_scaffolds))
+    fig, ax_plot = plt.subplots(
+        figsize=(8.2, layout["scatter_fig_height"]),
+        facecolor="white",
     )
 
     for scaffold in selected_scaffolds:
@@ -476,7 +555,7 @@ def plot_reference_style_figure(
         ax_plot.scatter(
             points[:, 0],
             points[:, 1],
-            s=230,
+            s=layout["scatter_size"],
             color=color_map[scaffold],
             edgecolors="white",
             linewidths=1.5,
@@ -499,7 +578,7 @@ def plot_reference_style_figure(
         spine.set_color("#8f96a3")
         spine.set_linewidth(1.2)
 
-    fig.subplots_adjust(left=0.03, right=0.995, top=0.90, bottom=0.06, wspace=0.04)
+    fig.subplots_adjust(left=0.08, right=0.995, top=0.92, bottom=0.06)
     fig.savefig(output_path, dpi=dpi, bbox_inches="tight", facecolor="white")
     plt.close(fig)
 
@@ -547,7 +626,9 @@ def main() -> None:
     cli_args.output_dir = normalize_path(cli_args.output_dir)
     cli_args.output_dir.mkdir(parents=True, exist_ok=True)
 
+    emit_progress(5, "Preparing runtime")
     runtime_args = build_runtime_args(cli_args)
+    emit_progress(10, "Loading dataset")
     data = get_data(
         path=str(cli_args.data_path),
         args=runtime_args,
@@ -558,9 +639,12 @@ def main() -> None:
 
     print(f"Loaded {len(data)} valid molecules from {cli_args.data_path}.")
 
+    emit_progress(22, "Loading checkpoint")
     model = load_model(runtime_args, cli_args.checkpoint_path)
+    emit_progress(30, "Starting embedding extraction")
     embeddings = get_emb(model, data, batch_size=cli_args.batch_size)
 
+    emit_progress(72, "Computing scaffolds")
     smiles_list = data.smiles()
     scaffold_labels = [generate_scaffold(smile) for smile in smiles_list]
     target_values = [
@@ -589,6 +673,7 @@ def main() -> None:
     filtered_scaffolds = [scaffold_labels[index] for index in keep_indices]
     filtered_targets = [str(target_values[index]) for index in keep_indices]
 
+    emit_progress(80, "Running t-SNE")
     perplexity = clip_perplexity(cli_args.perplexity, len(filtered_embeddings))
     tsne = TSNE(
         n_components=2,
@@ -607,19 +692,27 @@ def main() -> None:
     scaffold_counts = Counter(filtered_scaffolds)
 
     png_path = cli_args.output_dir / f"{cli_args.data_path.stem}_scaffold_tsne.png"
+    legend_png_path = cli_args.output_dir / f"{cli_args.data_path.stem}_scaffold_legend.png"
+    scatter_png_path = cli_args.output_dir / f"{cli_args.data_path.stem}_scaffold_scatter.png"
     csv_path = cli_args.output_dir / f"{cli_args.data_path.stem}_scaffold_tsne.csv"
     panel_label = cli_args.panel_label if cli_args.panel_label else dataset_display_name(cli_args.data_path)
+    emit_progress(92, "Rendering figure")
     if cli_args.style == "reference":
-        plot_reference_style_figure(
+        plot_reference_legend_figure(
+            selected_scaffolds=selected_scaffolds,
+            scaffold_counts=scaffold_counts,
+            dataset_name=panel_label,
+            output_path=legend_png_path,
+            dpi=cli_args.dpi,
+            show_counts=cli_args.show_counts,
+        )
+        plot_reference_scatter_figure(
             coordinates=coordinates,
             filtered_scaffolds=filtered_scaffolds,
             selected_scaffolds=selected_scaffolds,
-            scaffold_counts=scaffold_counts,
             db_index=db_index,
-            dataset_name=panel_label,
-            output_path=png_path,
+            output_path=scatter_png_path,
             dpi=cli_args.dpi,
-            show_counts=cli_args.show_counts,
         )
     else:
         plot_basic_style_figure(
@@ -639,13 +732,18 @@ def main() -> None:
         coordinates,
         filtered_targets,
     )
+    emit_progress(100, "Finished")
 
     print(f"Selected scaffolds ({len(selected_scaffolds)}):")
     for scaffold in selected_scaffolds:
         print(f"  {scaffold}: {scaffold_counts[scaffold]} molecules")
     if db_index is not None:
         print(f"Davies-Bouldin index: {db_index:.3f}")
-    print(f"Saved figure to {png_path}")
+    if cli_args.style == "reference":
+        print(f"Saved legend figure to {legend_png_path}")
+        print(f"Saved scatter figure to {scatter_png_path}")
+    else:
+        print(f"Saved figure to {png_path}")
     print(f"Saved coordinates to {csv_path}")
 
 

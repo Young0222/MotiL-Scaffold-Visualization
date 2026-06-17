@@ -1,14 +1,35 @@
 # Scaffold Visualization with MotiL
 
-This folder provides a small plotting tool for making scaffold-colored t-SNE figures from MotiL micromolecule embeddings.
+This folder provides a small local web tool for scaffold-based visualization of molecular embeddings from MotiL.
 
-It is built for fast reuse and demo videos.
+It is designed for easy demos and quick reuse.
 
-The main demo example in this folder is `BACE`.
+## ✨ What This Tool Does
+
+With this tool, a user can:
+
+- 🧪 upload a molecular dataset CSV
+- 🧠 upload a pretrained MotiL checkpoint
+- 🎛 choose a few display parameters
+- 📈 generate scaffold-colored visualization results
+- 💾 download the output CSV
+
+For `reference` style, the output is split into two images:
+
+- 🧩 `*_scaffold_legend.png`
+- 📈 `*_scaffold_scatter.png`
+
+For `basic` style, the output is:
+
+- 🖼 `*_scaffold_tsne.png`
+
+In all cases, the tool also exports:
+
+- 📄 `*_scaffold_tsne.csv`
 
 ## 🌱 Upstream Code
 
-This script works together with the original MotiL repository:
+This tool works together with the original MotiL repository:
 
 - MotiL repository: [Young0222/MotiL](https://github.com/Young0222/MotiL)
 
@@ -20,122 +41,151 @@ It directly reuses code from:
 - CMPNN encoder: [cmpn.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/models/cmpn.py)
 - Featurization: [featurization.py](https://github.com/Young0222/MotiL/blob/main/MotiL_micromolecule/chemprop/features/featurization.py)
 
-## 📁 Files
+## 📁 Main Files
 
+- `app.py`
+  Local web app. This is the main entry point.
 - `plot_scaffold_tsne.py`
-  Main plotting script.
+  Core plotting script used by the web app.
 - `requirements.txt`
-  Extra plotting dependencies.
+  Extra Python packages needed by this folder.
+- `demo_assets/`
+  Demo CSV files and a sample checkpoint.
+- `outputs_bace_demo/`
+  Example BACE output files.
+
+## 🧭 Folder Placement
+
+Place `scaffold_visualization_v2` next to `MotiL_micromolecule` inside the original MotiL repository.
+
+Expected structure:
+
+```text
+MotiL-main/
+├── MotiL_micromolecule/
+└── scaffold_visualization_v2/
+```
 
 ## ⚙️ Setup
 
-Place this `scaffold_visualization` folder next to `MotiL_micromolecule` inside the original MotiL repository.
+Use the same Python environment as the MotiL micromolecule code.
 
-Use the same environment as the micromolecule code:
+Install the original MotiL requirements first if needed:
 
 ```bash
 cd MotiL_micromolecule
 pip install -r requirements.txt
 ```
 
-If needed, also install:
+Then install the extra packages for this tool:
 
 ```bash
-pip install matplotlib scikit-learn
+pip install -r ../scaffold_visualization_v2/requirements.txt
 ```
 
-## 🚀 Quick Start
+## 🚀 Start the Web App
 
 From the repository root:
 
 ```bash
-python3 scaffold_visualization/plot_scaffold_tsne.py
+python3 scaffold_visualization_v2/app.py
 ```
 
-This uses:
+Then open:
 
-- dataset: `MotiL_micromolecule/data/bace.csv`
-- checkpoint: `MotiL_micromolecule/dumped/pre-train/1-model/original_CMPN_0707_0800_12000th_epoch.pkl`
-- style: `reference`
-
-## 🎬 Demo-Friendly Commands
-
-Reference-style BACE figure:
-
-```bash
-python3 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/bace.csv \
-  --dataset-type classification \
-  --panel-label BACE \
-  --style reference \
-  --top-k 6 \
-  --min-scaffold-size 8 \
-  --output-dir scaffold_visualization/outputs_bace_demo
+```text
+http://127.0.0.1:8000
 ```
 
-Reference-style BACE figure with a custom Python path:
+## 🪜 Simple Workflow
 
-```bash
-MPLCONFIGDIR=/absolute/path/to/scaffold_visualization/.mplcache \
-/opt/homebrew/bin/python3.10 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/bace.csv \
-  --dataset-type classification \
-  --panel-label BACE \
-  --style reference \
-  --top-k 6 \
-  --min-scaffold-size 8 \
-  --output-dir scaffold_visualization/outputs_bace_demo
-```
+The web app follows this flow:
 
-Reference-style figure with counts shown in the left panel:
+- 🧪 Upload CSV
+- 🧠 Upload checkpoint
+- 🎛 Set `panel-label`, `style`, `top-k`, and other options
+- ▶️ Run visualization
+- 🖼 Preview results
+- 💾 Download output files
 
-```bash
-python3 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/bace.csv \
-  --dataset-type classification \
-  --panel-label BACE \
-  --style reference \
-  --top-k 6 \
-  --show-counts \
-  --output-dir scaffold_visualization/outputs_bace_counts
-```
+## 📥 Required Input Format
 
-Simple scatter style:
+### Dataset CSV
 
-```bash
-python3 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/bace.csv \
-  --dataset-type classification \
-  --panel-label BACE \
-  --style basic \
-  --output-dir scaffold_visualization/outputs_bace_basic
-```
+- The file must be a `.csv`.
+- The first column must contain molecule SMILES strings.
+- The first column header must be `smiles`.
+- Extra columns are allowed, such as class labels or regression targets.
 
-## 🧩 Main Arguments
+Example files:
 
-- `--panel-label`
-  Overrides the vertical label in the left panel, for example `BACE`.
-- `--style`
-  Plot style. Use `reference` for the demo-style layout and `basic` for a simple scatter plot.
-- `--show-counts`
-  Shows `n=...` for each scaffold in the left panel.
-- `--top-k`
-  Number of scaffold groups to display when scaffolds are selected automatically.
-- `--min-scaffold-size`
+- [bace_demo_10.csv](/Users/ziyangliu/Desktop/MotiL-main/scaffold_visualization_v2/demo_assets/bace_demo_10.csv)
+- [bace_full.csv](/Users/ziyangliu/Desktop/MotiL-main/scaffold_visualization_v2/demo_assets/bace_full.csv)
+- [bbbp_full.csv](/Users/ziyangliu/Desktop/MotiL-main/scaffold_visualization_v2/demo_assets/bbbp_full.csv)
+
+### Checkpoint
+
+- Use a MotiL-compatible PyTorch checkpoint such as `.pkl` or `.pt`.
+- It should load through `torch.load(..., map_location="cpu")`.
+- It should contain encoder weights compatible with the micromolecule CMPNN encoder.
+
+Example file:
+
+- [original_CMPN_0707_0800_12000th_epoch.pkl](/Users/ziyangliu/Desktop/MotiL-main/scaffold_visualization_v2/demo_assets/original_CMPN_0707_0800_12000th_epoch.pkl)
+
+## 🧩 Supported Data Types
+
+- `classification`
+- `regression`
+- `multiclass`
+
+For `multiclass`, also set the number of classes.
+
+## 🎛 Main Options
+
+- `Dataset type`
+  Choose `classification`, `regression`, or `multiclass`.
+- `Panel label`
+  Controls the vertical label in the legend panel, for example `BACE`.
+- `Style`
+  Choose `reference` or `basic`.
+- `Top-k scaffolds`
+  Number of scaffold groups to show when automatic selection is used.
+- `Min scaffold size`
   Minimum scaffold frequency for automatic selection.
-- `--scaffolds`
-  Manually specify scaffold SMILES strings and their display order.
-- `--max-points`
-  Limit the number of molecules for faster testing.
+- `Max points`
+  Optional cap on the number of loaded molecules for faster testing.
+- `Multiclass number of classes`
+  Used only when `dataset type` is `multiclass`.
+- `Show scaffold counts`
+  Shows `n=...` next to each scaffold in the legend panel.
 
-## 📤 Output Files
+## 🖼 Output Files
 
-The script saves:
+### Reference Style
 
-- `*_scaffold_tsne.png`
-- `*_scaffold_tsne.csv`
+The tool generates:
 
-The CSV contains:
+- 🧩 `*_scaffold_legend.png`
+- 📈 `*_scaffold_scatter.png`
+- 📄 `*_scaffold_tsne.csv`
+
+Notes:
+
+- The legend and scatter plot are saved as separate images.
+- This keeps the scaffold images clean and avoids layout conflicts.
+- In the web app, the legend panel can be resized by dragging the divider.
+
+### Basic Style
+
+The tool generates:
+
+- 🖼 `*_scaffold_tsne.png`
+- 📄 `*_scaffold_tsne.csv`
+
+## 📄 CSV Output Columns
+
+The exported CSV contains:
 
 - `smiles`
 - `scaffold`
@@ -143,19 +193,59 @@ The CSV contains:
 - `tsne_y`
 - `target`
 
-## ✨ What the Figure Shows
+## 🧪 Command Line Examples
 
-The output figure can include:
+### BACE, reference style
 
-- a left scaffold panel with colored markers
-- automatically drawn scaffold structures
-- a right t-SNE scatter plot
-- a large DB index title
-- an optional vertical dataset label such as `BACE`
-- optional scaffold counts in the left panel
+```bash
+python3 scaffold_visualization_v2/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/bace.csv \
+  --dataset-type classification \
+  --panel-label BACE \
+  --style reference \
+  --top-k 6 \
+  --min-scaffold-size 8 \
+  --output-dir scaffold_visualization_v2/outputs_bace_demo
+```
+
+### BACE, basic style
+
+```bash
+python3 scaffold_visualization_v2/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/bace.csv \
+  --dataset-type classification \
+  --panel-label BACE \
+  --style basic \
+  --output-dir scaffold_visualization_v2/outputs_bace_demo
+```
+
+### Show scaffold counts
+
+```bash
+python3 scaffold_visualization_v2/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/bace.csv \
+  --dataset-type classification \
+  --panel-label BACE \
+  --style reference \
+  --top-k 6 \
+  --show-counts \
+  --output-dir scaffold_visualization_v2/outputs_bace_demo
+```
+
+## 🎬 Demo Tips
+
+If you are making a demo video, these are good features to show:
+
+- 🌐 upload a CSV and checkpoint from the browser
+- ⏳ real-time progress updates
+- 🧾 clean running logs
+- 🧩 separate legend and scatter outputs
+- ↔️ draggable legend panel in the result viewer
+- 💾 direct download of PNG and CSV outputs
 
 ## 📝 Notes
 
-- The left scaffold structures are drawn automatically with RDKit from scaffold SMILES.
-- The `reference` style is intended for polished figures and demo videos.
-- For paper-style figures, `--scaffolds` gives the most control over scaffold order and appearance.
+- The scaffold structures are drawn automatically by RDKit from scaffold SMILES.
+- The `reference` style is best for polished figures and demos.
+- The `basic` style is useful for quick checks.
+- If automatic scaffold selection is too strict for a small demo dataset, lower `Min scaffold size`.

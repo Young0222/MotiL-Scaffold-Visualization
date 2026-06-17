@@ -4,6 +4,8 @@ This folder provides a small plotting tool for making scaffold-colored t-SNE fig
 
 It is built for fast reuse and demo videos.
 
+The main demo example in this folder is `BACE`.
+
 ## 🌱 Upstream Code
 
 This script works together with the original MotiL repository:
@@ -52,27 +54,30 @@ python3 scaffold_visualization/plot_scaffold_tsne.py
 
 This uses:
 
-- dataset: `MotiL_micromolecule/data/esol.csv`
+- dataset: `MotiL_micromolecule/data/bace.csv`
 - checkpoint: `MotiL_micromolecule/dumped/pre-train/1-model/original_CMPN_0707_0800_12000th_epoch.pkl`
 - style: `reference`
 
 ## 🎬 Demo-Friendly Commands
 
-Reference-style ESOL figure:
-
-```bash
-python3 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/esol.csv \
-  --dataset-type regression \
-  --panel-label ESOL \
-  --style reference \
-  --output-dir scaffold_visualization/outputs_esol_demo
-```
-
 Reference-style BACE figure:
 
 ```bash
 python3 scaffold_visualization/plot_scaffold_tsne.py \
+  --data-path MotiL_micromolecule/data/bace.csv \
+  --dataset-type classification \
+  --panel-label BACE \
+  --style reference \
+  --top-k 6 \
+  --min-scaffold-size 8 \
+  --output-dir scaffold_visualization/outputs_bace_demo
+```
+
+Reference-style BACE figure with a custom Python path:
+
+```bash
+MPLCONFIGDIR=/absolute/path/to/scaffold_visualization/.mplcache \
+/opt/homebrew/bin/python3.10 scaffold_visualization/plot_scaffold_tsne.py \
   --data-path MotiL_micromolecule/data/bace.csv \
   --dataset-type classification \
   --panel-label BACE \
@@ -104,17 +109,6 @@ python3 scaffold_visualization/plot_scaffold_tsne.py \
   --panel-label BACE \
   --style basic \
   --output-dir scaffold_visualization/outputs_bace_basic
-```
-
-If your working environment uses a specific Python executable, run the script with that exact path. Example:
-
-```bash
-MPLCONFIGDIR=/absolute/path/to/scaffold_visualization/.mplcache \
-/opt/homebrew/bin/python3.10 scaffold_visualization/plot_scaffold_tsne.py \
-  --data-path MotiL_micromolecule/data/bace.csv \
-  --dataset-type classification \
-  --panel-label BACE \
-  --style reference
 ```
 
 ## 🧩 Main Arguments

@@ -7,6 +7,7 @@ from __future__ import annotations
 import argparse
 import csv
 import importlib.util
+import json
 import os
 import sys
 from collections import Counter
@@ -18,6 +19,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from matplotlib.colors import to_hex
 from matplotlib.offsetbox import AnnotationBbox, OffsetImage
 from matplotlib.patches import FancyBboxPatch
 from rdkit import RDLogger
@@ -390,6 +392,23 @@ def export_coordinates(
             writer.writerow([smile, scaffold, coord[0], coord[1], target])
 
 
+def export_metadata(
+    output_path: Path,
+    selected_scaffolds: list[str],
+    scaffold_counts: Counter,
+    db_index: float | None,
+    dataset_name: str,
+) -> None:
+    payload = {
+        "dataset_name": dataset_name,
+        "selected_scaffolds": selected_scaffolds,
+        "scaffold_counts": {scaffold: scaffold_counts[scaffold] for scaffold in selected_scaffolds},
+        "db_index": db_index,
+        "colors": build_color_palette(len(selected_scaffolds)),
+    }
+    output_path.write_text(json.dumps(payload, indent=2))
+
+
 def scaffold_to_image(scaffold: str, size: tuple[int, int] = (220, 120)):
     mol = Chem.MolFromSmiles(scaffold)
     if mol is None:
@@ -413,7 +432,7 @@ def build_color_palette(num_colors: int) -> list[str]:
     if num_colors <= len(base_palette):
         return base_palette[:num_colors]
     cmap = plt.get_cmap("tab20", num_colors)
-    return [cmap(i) for i in range(num_colors)]
+    return [to_hex(cmap(i)) for i in range(num_colors)]
 
 
 def reference_layout_settings(num_scaffolds: int) -> dict[str, object]:
@@ -695,6 +714,7 @@ def main() -> None:
     legend_png_path = cli_args.output_dir / f"{cli_args.data_path.stem}_scaffold_legend.png"
     scatter_png_path = cli_args.output_dir / f"{cli_args.data_path.stem}_scaffold_scatter.png"
     csv_path = cli_args.output_dir / f"{cli_args.data_path.stem}_scaffold_tsne.csv"
+    meta_path = cli_args.output_dir / f"{cli_args.data_path.stem}_scaffold_meta.json"
     panel_label = cli_args.panel_label if cli_args.panel_label else dataset_display_name(cli_args.data_path)
     emit_progress(92, "Rendering figure")
     if cli_args.style == "reference":
@@ -732,6 +752,13 @@ def main() -> None:
         coordinates,
         filtered_targets,
     )
+    export_metadata(
+        meta_path,
+        selected_scaffolds,
+        scaffold_counts,
+        db_index,
+        panel_label,
+    )
     emit_progress(100, "Finished")
 
     print(f"Selected scaffolds ({len(selected_scaffolds)}):")
@@ -745,6 +772,7 @@ def main() -> None:
     else:
         print(f"Saved figure to {png_path}")
     print(f"Saved coordinates to {csv_path}")
+    print(f"Saved metadata to {meta_path}")
 
 
 if __name__ == "__main__":

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import csv
+import io
+import json
 import os
 import subprocess
 import sys
@@ -10,7 +12,7 @@ import threading
 import uuid
 from pathlib import Path
 
-from flask import Flask, abort, jsonify, render_template_string, request, send_from_directory, url_for
+from flask import Flask, abort, jsonify, render_template_string, request, send_file, send_from_directory, url_for
 from werkzeug.utils import secure_filename
 
 
@@ -323,6 +325,74 @@ PAGE_TEMPLATE = """
       overflow: auto;
       background: #fffdfa;
     }
+    .scatter-stage {
+      position: relative;
+      width: 100%;
+      min-height: 520px;
+      border-radius: 18px;
+      border: 1px solid rgba(110, 110, 110, 0.16);
+      background: white;
+      overflow: hidden;
+    }
+    .scatter-canvas {
+      width: 100%;
+      height: 100%;
+      min-height: 520px;
+      display: block;
+      background: white;
+    }
+    .hover-card {
+      position: absolute;
+      min-width: 240px;
+      max-width: 300px;
+      padding: 12px;
+      border-radius: 16px;
+      background: rgba(255, 253, 248, 0.98);
+      border: 1px solid rgba(169, 154, 129, 0.35);
+      box-shadow: 0 18px 42px rgba(61, 46, 25, 0.16);
+      pointer-events: none;
+      z-index: 5;
+    }
+    .hover-title {
+      margin: 0 0 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--ink);
+    }
+    .hover-title-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+    .hover-color-dot {
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      border: 2px solid white;
+      box-shadow: 0 0 0 1px rgba(26, 26, 26, 0.12);
+      flex: 0 0 14px;
+    }
+    .hover-smiles {
+      margin: 0 0 8px;
+      font-size: 0.78rem;
+      color: var(--muted);
+      line-height: 1.45;
+      word-break: break-word;
+    }
+    .hover-image {
+      width: 100%;
+      height: auto;
+      display: block;
+      border-radius: 12px;
+      background: white;
+      border: 1px solid rgba(110, 110, 110, 0.14);
+    }
+    .hover-target {
+      margin-top: 8px;
+      font-size: 0.78rem;
+      color: var(--muted);
+    }
     .pane-title {
       margin: 0 0 8px;
       font-size: 0.92rem;
@@ -513,7 +583,19 @@ PAGE_TEMPLATE = """
           <div id="preview-splitter" class="splitter hidden" aria-label="Resize legend panel" title="Drag to resize legend"></div>
           <div id="scatter-pane" class="scatter-pane">
             <div class="pane-title">Scatter Plot</div>
-            <img id="preview-image" class="preview-fit hidden" src="" alt="Generated figure">
+            <div id="scatter-stage" class="scatter-stage">
+              <svg id="interactive-scatter" class="scatter-canvas hidden" viewBox="0 0 900 640" preserveAspectRatio="xMidYMid meet"></svg>
+              <img id="preview-image" class="preview-fit hidden" src="" alt="Generated figure">
+              <div id="hover-card" class="hover-card hidden">
+                <div class="hover-title-row">
+                  <span id="hover-color-dot" class="hover-color-dot"></span>
+                  <div id="hover-title" class="hover-title"></div>
+                </div>
+                <div id="hover-smiles" class="hover-smiles"></div>
+                <img id="hover-image" class="hover-image" src="" alt="Hovered molecule">
+                <div id="hover-target" class="hover-target hidden"></div>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -543,10 +625,20 @@ PAGE_TEMPLATE = """
     const scatterPane = document.getElementById("scatter-pane");
     const legendPreviewImage = document.getElementById("legend-preview-image");
     const previewImage = document.getElementById("preview-image");
+    const interactiveScatter = document.getElementById("interactive-scatter");
+    const scatterStage = document.getElementById("scatter-stage");
+    const hoverCard = document.getElementById("hover-card");
+    const hoverColorDot = document.getElementById("hover-color-dot");
+    const hoverTitle = document.getElementById("hover-title");
+    const hoverSmiles = document.getElementById("hover-smiles");
+    const hoverImage = document.getElementById("hover-image");
+    const hoverTarget = document.getElementById("hover-target");
 
     let currentJobId = null;
     let pollTimer = null;
     let isResizing = false;
+    let scatterPoints = [];
+    let activeCircle = null;
 
     function setStatus(state, message) {
       statusBox.classList.remove("good", "bad");
@@ -566,6 +658,192 @@ PAGE_TEMPLATE = """
       progressBar.style.width = `${percent}%`;
       progressPercent.textContent = `${percent}%`;
       progressStage.textContent = stage || "Running...";
+    }
+
+    function hideHoverCard() {
+      hoverCard.classList.add("hidden");
+      if (activeCircle) {
+        activeCircle.setAttribute("r", activeCircle.dataset.baseRadius || "8.5");
+        activeCircle.setAttribute("stroke", "white");
+        activeCircle.setAttribute("stroke-width", "2");
+        activeCircle.setAttribute("fill-opacity", "0.96");
+        activeCircle.removeAttribute("filter");
+        activeCircle = null;
+      }
+    }
+
+    function highlightCircle(circle) {
+      if (activeCircle && activeCircle !== circle) {
+        activeCircle.setAttribute("r", activeCircle.dataset.baseRadius || "8.5");
+        activeCircle.setAttribute("stroke", "white");
+        activeCircle.setAttribute("stroke-width", "2");
+        activeCircle.setAttribute("fill-opacity", "0.96");
+        activeCircle.removeAttribute("filter");
+      }
+      activeCircle = circle;
+      if (!circle) {
+        return;
+      }
+      circle.setAttribute("r", "11.5");
+      circle.setAttribute("stroke", "#111111");
+      circle.setAttribute("stroke-width", "2.8");
+      circle.setAttribute("fill-opacity", "1");
+      circle.setAttribute("filter", "drop-shadow(0px 0px 7px rgba(17,17,17,0.22))");
+    }
+
+    function showHoverCard(event, point, circle) {
+      highlightCircle(circle);
+      hoverTitle.textContent = point.scaffold;
+      hoverColorDot.style.background = String(point.color || "#4b6ff2");
+      hoverSmiles.textContent = point.smiles;
+      hoverImage.src = `/molecule_image?smiles=${encodeURIComponent(point.smiles)}`;
+      if (point.target) {
+        hoverTarget.textContent = `Target: ${point.target}`;
+        hoverTarget.classList.remove("hidden");
+      } else {
+        hoverTarget.classList.add("hidden");
+      }
+
+      const stageBounds = scatterStage.getBoundingClientRect();
+      hoverCard.classList.remove("hidden");
+      const cardWidth = hoverCard.offsetWidth || 260;
+      const cardHeight = hoverCard.offsetHeight || 220;
+      const margin = 14;
+      let left = event.clientX - stageBounds.left + 16;
+      let top = event.clientY - stageBounds.top + 16;
+      if (left + cardWidth + margin > stageBounds.width) {
+        left = event.clientX - stageBounds.left - cardWidth - 16;
+      }
+      if (left < margin) {
+        left = margin;
+      }
+      if (top + cardHeight + margin > stageBounds.height) {
+        top = event.clientY - stageBounds.top - cardHeight - 16;
+      }
+      if (top < margin) {
+        top = margin;
+      }
+      hoverCard.style.left = `${left}px`;
+      hoverCard.style.top = `${top}px`;
+    }
+
+    function buildColorMap(selectedScaffolds, colors, points) {
+      const colorMap = {};
+      selectedScaffolds.forEach((scaffold, index) => {
+        const rawColor = colors[index];
+        colorMap[scaffold] = typeof rawColor === "string" ? rawColor : "#4b6ff2";
+      });
+      if (Object.keys(colorMap).length === 0) {
+        const palette = ["#ff245a", "#b3b3b3", "#ffdd2d", "#4b6ff2", "#ff8b38", "#9f1ae2"];
+        let colorIndex = 0;
+        points.forEach((point) => {
+          if (!colorMap[point.scaffold]) {
+            colorMap[point.scaffold] = palette[colorIndex % palette.length];
+            colorIndex += 1;
+          }
+        });
+      }
+      return colorMap;
+    }
+
+    function renderInteractiveScatter(payload) {
+      const points = payload.points || [];
+      if (!points.length) {
+        interactiveScatter.classList.add("hidden");
+        previewImage.classList.remove("hidden");
+        return;
+      }
+
+      const width = 900;
+      const height = 640;
+      const padding = 52;
+      const xs = points.map((point) => point.x);
+      const ys = points.map((point) => point.y);
+      const minX = Math.min(...xs);
+      const maxX = Math.max(...xs);
+      const minY = Math.min(...ys);
+      const maxY = Math.max(...ys);
+      const spanX = Math.max(maxX - minX, 1e-6);
+      const spanY = Math.max(maxY - minY, 1e-6);
+      const colorMap = buildColorMap(payload.selected_scaffolds || [], payload.colors || [], points);
+
+      interactiveScatter.innerHTML = "";
+      interactiveScatter.setAttribute("viewBox", `0 0 ${width} ${height}`);
+
+      for (let i = 0; i < 6; i += 1) {
+        const x = padding + ((width - 2 * padding) * i) / 5;
+        const y = padding + ((height - 2 * padding) * i) / 5;
+
+        const vLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        vLine.setAttribute("x1", x);
+        vLine.setAttribute("y1", padding);
+        vLine.setAttribute("x2", x);
+        vLine.setAttribute("y2", height - padding);
+        vLine.setAttribute("stroke", "#cfd4dd");
+        vLine.setAttribute("stroke-opacity", "0.45");
+        vLine.setAttribute("stroke-width", "1.2");
+        interactiveScatter.appendChild(vLine);
+
+        const hLine = document.createElementNS("http://www.w3.org/2000/svg", "line");
+        hLine.setAttribute("x1", padding);
+        hLine.setAttribute("y1", y);
+        hLine.setAttribute("x2", width - padding);
+        hLine.setAttribute("y2", y);
+        hLine.setAttribute("stroke", "#cfd4dd");
+        hLine.setAttribute("stroke-opacity", "0.45");
+        hLine.setAttribute("stroke-width", "1.2");
+        interactiveScatter.appendChild(hLine);
+      }
+
+      const title = document.createElementNS("http://www.w3.org/2000/svg", "text");
+      title.setAttribute("x", width / 2);
+      title.setAttribute("y", 34);
+      title.setAttribute("text-anchor", "middle");
+      title.setAttribute("font-size", "28");
+      title.setAttribute("font-family", "Avenir Next, Segoe UI, sans-serif");
+      title.textContent = payload.db_index !== null && payload.db_index !== undefined
+        ? `DB index: ${Number(payload.db_index).toFixed(2)}`
+        : "Scatter Plot";
+      interactiveScatter.appendChild(title);
+
+      scatterPoints = points.map((point) => {
+        const cx = padding + ((point.x - minX) / spanX) * (width - 2 * padding);
+        const cy = height - padding - ((point.y - minY) / spanY) * (height - 2 * padding);
+        return { ...point, cx, cy, color: colorMap[point.scaffold] || "#4b6ff2" };
+      });
+
+      scatterPoints.forEach((point) => {
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        circle.setAttribute("cx", point.cx);
+        circle.setAttribute("cy", point.cy);
+        circle.setAttribute("r", "8.5");
+        circle.dataset.baseRadius = "8.5";
+        circle.setAttribute("fill", String(point.color || "#4b6ff2"));
+        circle.setAttribute("stroke", "white");
+        circle.setAttribute("stroke-width", "2");
+        circle.setAttribute("fill-opacity", "0.96");
+        circle.addEventListener("mousemove", (event) => showHoverCard(event, point, circle));
+        circle.addEventListener("mouseleave", hideHoverCard);
+        interactiveScatter.appendChild(circle);
+      });
+
+      interactiveScatter.classList.remove("hidden");
+      previewImage.classList.add("hidden");
+    }
+
+    async function loadInteractiveScatter(pointsUrl, fallbackImageUrl) {
+      try {
+        const response = await fetch(pointsUrl);
+        if (!response.ok) {
+          throw new Error("Could not load scatter points.");
+        }
+        const payload = await response.json();
+        renderInteractiveScatter(payload);
+      } catch (error) {
+        interactiveScatter.classList.add("hidden");
+        previewImage.classList.remove("hidden");
+        previewImage.src = `${fallbackImageUrl}?t=${Date.now()}`;
+      }
     }
 
     function startResize(event) {
@@ -629,18 +907,17 @@ PAGE_TEMPLATE = """
         if (data.scatter_url) {
           scatterLink.classList.remove("hidden");
           scatterLink.href = data.scatter_url;
-          previewImage.classList.remove("hidden");
-          previewImage.src = `${data.scatter_url}?t=${Date.now()}`;
+          loadInteractiveScatter(data.points_url, data.scatter_url);
           pngLink.classList.add("hidden");
         } else if (data.png_url) {
           pngLink.classList.remove("hidden");
           pngLink.href = data.png_url;
-          previewImage.classList.remove("hidden");
-          previewImage.src = `${data.png_url}?t=${Date.now()}`;
+          loadInteractiveScatter(data.points_url, data.png_url);
           legendPane.classList.add("hidden");
           previewSplitter.classList.add("hidden");
           scatterLink.classList.add("hidden");
         } else {
+          interactiveScatter.classList.add("hidden");
           previewImage.classList.add("hidden");
           legendPane.classList.add("hidden");
           previewSplitter.classList.add("hidden");
@@ -692,6 +969,7 @@ PAGE_TEMPLATE = """
     previewSplitter.addEventListener("pointerdown", startResize);
     window.addEventListener("pointermove", handleResize);
     window.addEventListener("pointerup", stopResize);
+    scatterStage.addEventListener("mouseleave", hideHoverCard);
   </script>
 </body>
 </html>
@@ -826,14 +1104,16 @@ def run_job(job_id: str, command: list[str], output_dir: Path, csv_stem: str) ->
     legend_name = f"{csv_stem}_scaffold_legend.png"
     scatter_name = f"{csv_stem}_scaffold_scatter.png"
     csv_name = f"{csv_stem}_scaffold_tsne.csv"
+    meta_name = f"{csv_stem}_scaffold_meta.json"
     png_path = output_dir / png_name
     legend_path = output_dir / legend_name
     scatter_path = output_dir / scatter_name
     csv_path = output_dir / csv_name
+    meta_path = output_dir / meta_name
 
     has_reference_outputs = legend_path.exists() and scatter_path.exists()
     has_basic_outputs = png_path.exists()
-    if return_code != 0 or (not has_reference_outputs and not has_basic_outputs) or not csv_path.exists():
+    if return_code != 0 or (not has_reference_outputs and not has_basic_outputs) or not csv_path.exists() or not meta_path.exists():
         update_job(
             job_id,
             state="error",
@@ -853,6 +1133,8 @@ def run_job(job_id: str, command: list[str], output_dir: Path, csv_stem: str) ->
         legend_url=f"/jobs/{job_id}/{legend_name}" if has_reference_outputs else None,
         scatter_url=f"/jobs/{job_id}/{scatter_name}" if has_reference_outputs else None,
         csv_url=f"/jobs/{job_id}/{csv_name}",
+        meta_url=f"/jobs/{job_id}/{meta_name}",
+        points_url=f"/job_points/{job_id}",
     )
 
 
@@ -900,6 +1182,8 @@ def start_job():
             "legend_url": None,
             "scatter_url": None,
             "csv_url": None,
+            "meta_url": None,
+            "points_url": None,
         }
 
     worker = threading.Thread(
@@ -929,8 +1213,70 @@ def job_status(job_id: str):
             "legend_url": job.get("legend_url"),
             "scatter_url": job.get("scatter_url"),
             "csv_url": job["csv_url"],
+            "meta_url": job.get("meta_url"),
+            "points_url": job.get("points_url"),
         }
     return jsonify(payload)
+
+
+@app.route("/job_points/<job_id>")
+def job_points(job_id: str):
+    job_dir = JOB_DIR / job_id
+    if not job_dir.exists():
+        abort(404)
+
+    csv_files = sorted(job_dir.glob("*_scaffold_tsne.csv"))
+    meta_files = sorted(job_dir.glob("*_scaffold_meta.json"))
+    if not csv_files or not meta_files:
+        abort(404)
+
+    csv_path = csv_files[0]
+    meta_path = meta_files[0]
+    metadata = json.loads(meta_path.read_text())
+
+    points = []
+    with csv_path.open() as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            points.append(
+                {
+                    "smiles": row["smiles"],
+                    "scaffold": row["scaffold"],
+                    "x": float(row["tsne_x"]),
+                    "y": float(row["tsne_y"]),
+                    "target": row.get("target", ""),
+                }
+            )
+
+    return jsonify(
+        {
+            "points": points,
+            "selected_scaffolds": metadata.get("selected_scaffolds", []),
+            "colors": metadata.get("colors", []),
+            "dataset_name": metadata.get("dataset_name", ""),
+            "db_index": metadata.get("db_index"),
+        }
+    )
+
+
+@app.route("/molecule_image")
+def molecule_image():
+    smiles = request.args.get("smiles", "").strip()
+    if not smiles:
+        abort(400)
+
+    from rdkit import Chem
+    from rdkit.Chem import Draw
+
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        abort(404)
+
+    image = Draw.MolToImage(mol, size=(260, 160))
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG")
+    buffer.seek(0)
+    return send_file(buffer, mimetype="image/png")
 
 
 @app.route("/demo/<path:filename>")

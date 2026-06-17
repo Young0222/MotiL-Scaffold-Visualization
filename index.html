@@ -1,0 +1,524 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>MotiL Scaffold Visualization Demo</title>
+  <style>
+    :root {
+      --bg: #f6f3ee;
+      --paper: #fffdf9;
+      --ink: #171717;
+      --muted: #5f6470;
+      --line: #ddd6cb;
+      --accent: #ff4b6e;
+      --accent-2: #2351ff;
+      --gold: #ffcf2f;
+      --panel: #ece7de;
+      --good: #1f8f5f;
+      --warn: #b06b00;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "Avenir Next", "Segoe UI", sans-serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top left, #fff9ef 0, transparent 24%),
+        linear-gradient(180deg, #f9f6f0 0%, #f2eee6 100%);
+    }
+
+    .page {
+      max-width: 1240px;
+      margin: 0 auto;
+      padding: 28px 20px 56px;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 22px;
+      align-items: stretch;
+      margin-bottom: 24px;
+    }
+
+    .hero-card, .card {
+      background: rgba(255, 253, 249, 0.92);
+      border: 1px solid rgba(165, 152, 131, 0.18);
+      border-radius: 28px;
+      box-shadow: 0 18px 50px rgba(55, 41, 22, 0.07);
+    }
+
+    .hero-card {
+      padding: 28px;
+    }
+
+    .hero h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2.2rem, 4vw, 4rem);
+      line-height: 0.95;
+      letter-spacing: -0.04em;
+    }
+
+    .hero p {
+      margin: 0;
+      font-size: 1.04rem;
+      line-height: 1.7;
+      color: var(--muted);
+      max-width: 62ch;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 18px 0 0;
+    }
+
+    .pill {
+      padding: 10px 14px;
+      border-radius: 999px;
+      background: #fff;
+      border: 1px solid var(--line);
+      font-size: 0.92rem;
+    }
+
+    .preview-card {
+      padding: 18px;
+      display: grid;
+      gap: 12px;
+      align-content: start;
+      background: linear-gradient(180deg, #fffdfa 0%, #f6f1e9 100%);
+    }
+
+    .preview-card img {
+      width: 100%;
+      border-radius: 22px;
+      border: 1px solid rgba(120, 120, 120, 0.16);
+      background: white;
+    }
+
+    .caption {
+      color: var(--muted);
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 22px;
+      margin-bottom: 22px;
+    }
+
+    .card {
+      padding: 22px;
+    }
+
+    h2 {
+      margin: 0 0 14px;
+      font-size: 1.35rem;
+      letter-spacing: -0.02em;
+    }
+
+    h3 {
+      margin: 18px 0 8px;
+      font-size: 1rem;
+    }
+
+    ul, ol {
+      margin: 10px 0 0 20px;
+      padding: 0;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+
+    li + li {
+      margin-top: 6px;
+    }
+
+    .format-box {
+      border: 1px dashed var(--line);
+      border-radius: 18px;
+      padding: 14px 16px;
+      background: #fffdfa;
+      margin-top: 12px;
+    }
+
+    .download-list, .output-links {
+      display: grid;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    a.button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      text-decoration: none;
+      color: var(--ink);
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 16px;
+      padding: 12px 14px;
+      font-weight: 600;
+    }
+
+    a.button.primary {
+      background: var(--ink);
+      color: white;
+      border-color: var(--ink);
+    }
+
+    .tool-grid {
+      display: grid;
+      grid-template-columns: 1.1fr 0.9fr;
+      gap: 22px;
+      margin-bottom: 22px;
+    }
+
+    .field {
+      margin-bottom: 16px;
+    }
+
+    .field label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 700;
+      font-size: 0.95rem;
+    }
+
+    .field input[type="text"],
+    .field input[type="number"],
+    .field select,
+    .field textarea,
+    .field input[type="file"] {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 12px 14px;
+      font: inherit;
+      background: white;
+    }
+
+    .field small {
+      display: block;
+      color: var(--muted);
+      margin-top: 6px;
+      line-height: 1.5;
+    }
+
+    .inline {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 12px;
+    }
+
+    .status {
+      margin-top: 10px;
+      padding: 12px 14px;
+      border-radius: 14px;
+      font-size: 0.94rem;
+      line-height: 1.55;
+      background: #faf7f2;
+      border: 1px solid var(--line);
+    }
+
+    .status.good {
+      color: var(--good);
+      border-color: rgba(31, 143, 95, 0.22);
+      background: rgba(31, 143, 95, 0.07);
+    }
+
+    .status.warn {
+      color: var(--warn);
+      border-color: rgba(176, 107, 0, 0.24);
+      background: rgba(255, 208, 77, 0.13);
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+      font-size: 0.92rem;
+      line-height: 1.65;
+      color: #222;
+    }
+
+    .command-box {
+      border-radius: 18px;
+      padding: 16px;
+      border: 1px solid var(--line);
+      background: #fffdfa;
+      min-height: 170px;
+    }
+
+    .copy-btn {
+      margin-top: 12px;
+      border: 0;
+      border-radius: 14px;
+      background: var(--accent);
+      color: white;
+      font: inherit;
+      font-weight: 700;
+      padding: 12px 14px;
+      cursor: pointer;
+    }
+
+    .footnote {
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.7;
+      margin-top: 8px;
+    }
+
+    @media (max-width: 940px) {
+      .hero, .grid, .tool-grid, .inline {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <section class="hero">
+      <div class="hero-card">
+        <h1>Scaffold Visualization Demo</h1>
+        <p>
+          A static front-end page for the MotiL scaffold visualization tool.
+          Users can prepare their own molecular dataset CSV and pretrained checkpoint,
+          set a few plotting parameters, and copy the exact local command needed to generate
+          a scaffold-colored t-SNE figure and coordinate table.
+        </p>
+        <div class="pill-row">
+          <div class="pill">🧪 Upload your own CSV</div>
+          <div class="pill">🧠 Use your own pretrained checkpoint</div>
+          <div class="pill">🎛 Set panel label, style, and top-k</div>
+          <div class="pill">🖼 Output PNG + CSV</div>
+        </div>
+      </div>
+      <div class="hero-card preview-card">
+        <img src="outputs_bace_demo/bace_scaffold_tsne.png" alt="BACE scaffold t-SNE preview">
+        <div class="caption">
+          Example output generated from the current BACE demo setup.
+          The left panel shows scaffold structures, and the right panel shows scaffold-colored t-SNE points.
+        </div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <div class="card">
+        <h2>📥 Required Inputs</h2>
+
+        <h3>1. Molecular dataset CSV</h3>
+        <div class="format-box">
+          <ul>
+            <li>The file must be a <code>.csv</code>.</li>
+            <li>The first column header should be <code>smiles</code>.</li>
+            <li>Each row should contain one molecule.</li>
+            <li>Extra columns are allowed. A common second column is a label such as <code>Class</code>.</li>
+          </ul>
+        </div>
+
+        <h3>2. Pretrained checkpoint</h3>
+        <div class="format-box">
+          <ul>
+            <li>The file should be a PyTorch checkpoint, for example <code>.pkl</code> or <code>.pt</code>.</li>
+            <li>It should be compatible with <code>torch.load(..., map_location="cpu")</code>.</li>
+            <li>It should contain a MotiL encoder state dict with keys such as <code>encoder.W_i_atom.weight</code>.</li>
+          </ul>
+        </div>
+
+        <div class="download-list">
+          <a class="button" href="demo_assets/bace_demo_10.csv" download>⬇️ Download demo CSV</a>
+          <a class="button" href="demo_assets/original_CMPN_0707_0800_12000th_epoch.pkl" download>⬇️ Download sample checkpoint</a>
+        </div>
+
+        <div class="footnote">
+          The sample CSV is a small BACE example. The sample checkpoint is the pretrained MotiL encoder used by the current tool.
+        </div>
+      </div>
+
+      <div class="card">
+        <h2>📤 Expected Outputs</h2>
+        <ul>
+          <li><code>*_scaffold_tsne.png</code> — the scaffold-colored t-SNE figure.</li>
+          <li><code>*_scaffold_tsne.csv</code> — the coordinate table.</li>
+        </ul>
+
+        <h3>Output CSV columns</h3>
+        <div class="format-box">
+          <ul>
+            <li><code>smiles</code></li>
+            <li><code>scaffold</code></li>
+            <li><code>tsne_x</code></li>
+            <li><code>tsne_y</code></li>
+            <li><code>target</code></li>
+          </ul>
+        </div>
+
+        <div class="output-links">
+          <a class="button" href="outputs_bace_demo/bace_scaffold_tsne.png" target="_blank">🖼 Open example PNG</a>
+          <a class="button" href="outputs_bace_demo/bace_scaffold_tsne.csv" download>📄 Download example CSV</a>
+          <a class="button primary" href="README.md" target="_blank">📘 Open README</a>
+        </div>
+      </div>
+    </section>
+
+    <section class="tool-grid">
+      <div class="card">
+        <h2>🎛 Demo Control Panel</h2>
+
+        <div class="field">
+          <label for="csvFile">Dataset CSV</label>
+          <input id="csvFile" type="file" accept=".csv">
+          <small>Strict format: the first column should be <code>smiles</code>.</small>
+        </div>
+
+        <div class="field">
+          <label for="ckptFile">Checkpoint file</label>
+          <input id="ckptFile" type="file" accept=".pkl,.pt,.ckpt">
+          <small>Expected format: a MotiL-compatible PyTorch checkpoint.</small>
+        </div>
+
+        <div class="inline">
+          <div class="field">
+            <label for="panelLabel">--panel-label</label>
+            <input id="panelLabel" type="text" value="BACE">
+          </div>
+          <div class="field">
+            <label for="style">--style</label>
+            <select id="style">
+              <option value="reference" selected>reference</option>
+              <option value="basic">basic</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="topK">--top-k</label>
+            <input id="topK" type="number" min="1" step="1" value="6">
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="showCounts">
+            <input id="showCounts" type="checkbox">
+            show scaffold counts
+          </label>
+        </div>
+
+        <div id="csvStatus" class="status">CSV status will appear here.</div>
+        <div id="ckptStatus" class="status">Checkpoint status will appear here.</div>
+      </div>
+
+      <div class="card">
+        <h2>🧭 Local Command Builder</h2>
+        <div class="command-box">
+          <pre id="commandPreview"></pre>
+        </div>
+        <button class="copy-btn" id="copyBtn">Copy command</button>
+        <div class="footnote">
+          This page is a static demo page. It does not run the model in the browser.
+          Instead, it helps the user validate inputs and prepare the exact local command to run.
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const csvFile = document.getElementById("csvFile");
+    const ckptFile = document.getElementById("ckptFile");
+    const panelLabel = document.getElementById("panelLabel");
+    const style = document.getElementById("style");
+    const topK = document.getElementById("topK");
+    const showCounts = document.getElementById("showCounts");
+    const csvStatus = document.getElementById("csvStatus");
+    const ckptStatus = document.getElementById("ckptStatus");
+    const commandPreview = document.getElementById("commandPreview");
+    const copyBtn = document.getElementById("copyBtn");
+
+    function updateCommand() {
+      const csvName = csvFile.files[0] ? csvFile.files[0].name : "your_dataset.csv";
+      const ckptName = ckptFile.files[0] ? ckptFile.files[0].name : "your_model_checkpoint.pkl";
+      const label = panelLabel.value.trim() || "BACE";
+      const styleValue = style.value;
+      const topKValue = topK.value || "6";
+      const countsArg = showCounts.checked ? " \\\n  --show-counts" : "";
+
+      const command =
+`MPLCONFIGDIR=/absolute/path/to/scaffold_visualization/.mplcache \\
+/opt/homebrew/bin/python3.10 scaffold_visualization/plot_scaffold_tsne.py \\
+  --data-path /absolute/path/to/${csvName} \\
+  --checkpoint-path /absolute/path/to/${ckptName} \\
+  --dataset-type classification \\
+  --panel-label ${label} \\
+  --style ${styleValue} \\
+  --top-k ${topKValue}${countsArg} \\
+  --output-dir scaffold_visualization/outputs_custom_demo`;
+
+      commandPreview.textContent = command;
+    }
+
+    function setStatus(el, text, type) {
+      el.textContent = text;
+      el.className = `status ${type || ""}`.trim();
+    }
+
+    csvFile.addEventListener("change", async () => {
+      updateCommand();
+      const file = csvFile.files[0];
+      if (!file) {
+        setStatus(csvStatus, "CSV status will appear here.", "");
+        return;
+      }
+      if (!file.name.toLowerCase().endsWith(".csv")) {
+        setStatus(csvStatus, "Please use a .csv file.", "warn");
+        return;
+      }
+      const text = await file.text();
+      const firstLine = text.split(/\r?\n/).find(line => line.trim().length > 0) || "";
+      const firstHeader = firstLine.split(",")[0]?.trim();
+      if (firstHeader === "smiles") {
+        setStatus(csvStatus, `Looks good. First column header is "smiles". File: ${file.name}`, "good");
+      } else {
+        setStatus(csvStatus, `Warning: the first column header is "${firstHeader || "(empty)"}". Expected "smiles".`, "warn");
+      }
+    });
+
+    ckptFile.addEventListener("change", () => {
+      updateCommand();
+      const file = ckptFile.files[0];
+      if (!file) {
+        setStatus(ckptStatus, "Checkpoint status will appear here.", "");
+        return;
+      }
+      const lower = file.name.toLowerCase();
+      if (lower.endsWith(".pkl") || lower.endsWith(".pt") || lower.endsWith(".ckpt")) {
+        setStatus(ckptStatus, `Checkpoint file selected: ${file.name}`, "good");
+      } else {
+        setStatus(ckptStatus, "Please use a PyTorch checkpoint file such as .pkl or .pt.", "warn");
+      }
+    });
+
+    [panelLabel, style, topK, showCounts].forEach(el => {
+      el.addEventListener("input", updateCommand);
+      el.addEventListener("change", updateCommand);
+    });
+
+    copyBtn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(commandPreview.textContent);
+        copyBtn.textContent = "Copied";
+        setTimeout(() => { copyBtn.textContent = "Copy command"; }, 1200);
+      } catch {
+        copyBtn.textContent = "Copy failed";
+        setTimeout(() => { copyBtn.textContent = "Copy command"; }, 1200);
+      }
+    });
+
+    updateCommand();
+  </script>
+</body>
+</html>
